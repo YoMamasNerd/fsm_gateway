@@ -81,20 +81,20 @@ Aus der Analyse der Repositories wurden folgende 10 Kern-Endpunkte identifiziert
 
 ## 📝 4. Roadmap zur Umsetzung
 
-- [ ] **Schritt 1: FSM-Gateway Repo anlegen (`fsm_gateway`)**
+- [x] **Schritt 1: FSM-Gateway Repo anlegen (`fsm_gateway`)**
   - FastAPI mit Pydantic v2 Models für alle Requests & Responses
   - Zentraler `FSMClient` mit Token-Cache & Auto-Login bei `401`
   - Dockerfile & `docker-compose.yml` (Port `8090` auf DocMan)
-- [ ] **Schritt 2: Endpunkte implementieren & testen**
+- [x] **Schritt 2: Endpunkte implementieren & testen**
   - `/auth`, `/fahrlehrer`, `/kalender`, `/termine`
   - `/schueler/suche`, `/schueler/{id}`, `/schueler/{id}/fahrstunden`, `/schueler/{id}/leistungen`, `/schueler/{id}/zahlung`
   - Unit-Tests & Mock-Tests für alle FSM-Payloads
-- [ ] **Schritt 3: Deployment auf DocMan**
+- [x] **Schritt 3: Deployment auf DocMan vorbereiten**
   - Docker-Container in das gemeinsame interne Docker-Netzwerk einbinden
   - Healthcheck & Auto-Restart konfigurieren
 - [ ] **Schritt 4: Anbindung der 3 Clients**
-  - `schalti_termine`: `fsm_client.py` auf `FSM_GATEWAY_URL=http://fsm-gateway:8000` umstellen
+  - `schalti_termine`: `fsm_client.py` auf `FSM_GATEWAY_URL=http://fsm-gateway:8090` umstellen
   - `django_rechn`: `fsm_importer.py` auf das Gateway umstellen
   - `django_diacard`: Schüler-Import direkt über das Gateway anbinden
-- [ ] **Schritt 5: SumUp Webhook-Handler (optional)**
-  - Webhook-Endpunkt `/webhooks/sumup` für automatisches Einbuchen von Kartenzahlungen aktivieren
+- [x] **Schritt 5: SumUp Webhook-Handler**
+  - Webhook-Endpunkt `/webhooks/sumup` für automatisches Einbuchen von Kartenzahlungen implementiert und getestet

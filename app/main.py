@@ -1,0 +1,184 @@
+"""Main FastAPI application entry point."""
+
+from __future__ import annotations
+
+import asyncio
+import logging
+from contextlib import asynccontextmanager
+from typing import Any
+
+from fastapi import Depends, FastAPI, Request, status
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
+
+from app.api.router import main_router
+from app.core.cache import cache
+from app.core.client import (
+    FsmApiError,
+    FsmAuthError,
+    FsmConfigError,
+    FsmException,
+    fsm_client,
+)
+from app.core.config import settings
+from app.core.security import verify_gateway_api_key
+
+# Configure logging
+logging.basicConfig(
+    level=getattr(logging, settings.LOG_LEVEL.upper(), logging.INFO),
+    format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+)
+logger = logging.getLogger("fsm_gateway")
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Application lifespan: Startup & Shutdown events."""
+    logger.info("🚀 FSM-Gateway gestartet auf Port %s (Target: %s)", settings.GATEWAY_PORT, settings.FSM_BASE_URL)
+    
+    # Pre-seed token or trigger auto-login on startup in background
+    if settings.FSM_AUTH_TOKEN:
+        await fsm_client.set_auth_token(settings.FSM_AUTH_TOKEN)
+        logger.info("Pre-seeded Auth Token gesetzt.")
+    elif settings.FSM_EMAIL and settings.FSM_PASSWORD:
+        async def _warmup_login():
+            try:
+                logger.info("Führe initialen Auto-Login beim Serverstart durch...")
+                await fsm_client.auto_login()
+                logger.info("✅ Initialer Auto-Login beim Start erfolgreich abgeschlossen.")
+            except Exception as exc:
+                logger.warning("Initialer Auto-Login beim Start fehlgeschlagen (wird bei Bedarf wiederholt): %s", exc)
+
+        asyncio.create_task(_warmup_login())
+
+    # Start periodic background cache cleanup task
+    async def _periodic_cache_cleanup():
+        while True:
+            try:
+                await asyncio.sleep(60)
+                purged = await cache.cleanup()
+                if purged > 0:
+                    logger.debug("Cache Cleanup: %s abgelaufene Einträge entfernt.", purged)
+            except asyncio.CancelledError:
+                break
+            except Exception as e:
+                logger.warning("Fehler beim periodischen Cache-Cleanup: %s", e)
+
+    cleanup_task = asyncio.create_task(_periodic_cache_cleanup())
+
+    yield
+
+    logger.info("🛑 FSM-Gateway wird beendet. Schließe Verbindungen...")
+    cleanup_task.cancel()
+    await fsm_client.close()
+    await cache.clear()
+
+
+app = FastAPI(
+    title="FSM-Gateway 🚗⚡",
+    description=(
+        "Zentraler FastAPI-Microservice für alle Interaktionen mit der **Fahrschulmanager (FSM)** API. "
+        "Dient als Single Source of Truth für `schalti_termine`, `django_rechn`, `django_diacard` und SumUp-Zahlungen."
+    ),
+    version="1.0.0",
+    docs_url="/docs",
+    redoc_url="/redoc",
+    openapi_url="/openapi.json",
+    lifespan=lifespan,
+    dependencies=[Depends(verify_gateway_api_key)],
+)
+
+# CORS Configuration
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=False,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+
+# Exception Handlers
+@app.exception_handler(FsmAuthError)
+async def fsm_auth_exception_handler(request: Request, exc: FsmAuthError):
+    return JSONResponse(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        content={"detail": str(exc), "error_type": "FsmAuthError"},
+    )
+
+
+@app.exception_handler(FsmConfigError)
+async def fsm_config_exception_handler(request: Request, exc: FsmConfigError):
+    return JSONResponse(
+        status_code=status.HTTP_400_BAD_REQUEST,
+        content={"detail": str(exc), "error_type": "FsmConfigError"},
+    )
+
+
+@app.exception_handler(FsmApiError)
+async def fsm_api_exception_handler(request: Request, exc: FsmApiError):
+    return JSONResponse(
+        status_code=exc.status_code,
+        content={
+            "detail": str(exc),
+            "error_type": "FsmApiError",
+            "fsm_response": exc.response_body,
+        },
+    )
+
+
+@app.exception_handler(FsmException)
+async def fsm_generic_exception_handler(request: Request, exc: FsmException):
+    return JSONResponse(
+        status_code=status.HTTP_502_BAD_GATEWAY,
+        content={"detail": str(exc), "error_type": "FsmException"},
+    )
+
+
+# Root & Healthcheck Endpoints
+@app.get(
+    "/",
+    tags=["System"],
+    summary="Gateway Root Information",
+    include_in_schema=False,
+)
+async def root_info() -> dict[str, Any]:
+    return {
+        "service": "FSM-Gateway",
+        "version": "1.0.0",
+        "status": "healthy",
+        "docs": "/docs",
+        "fsm_base_url": settings.FSM_BASE_URL,
+    }
+
+
+@app.get(
+    "/health",
+    tags=["System"],
+    summary="Healthcheck",
+)
+async def healthcheck() -> dict[str, Any]:
+    cache_items = await cache.size()
+    token = await fsm_client.get_auth_token()
+    return {
+        "status": "healthy",
+        "service": "fsm_gateway",
+        "cache_items": cache_items,
+        "has_token": bool(token),
+    }
+
+
+# Include Routers
+app.include_router(main_router)
+
+
+if __name__ == "__main__":
+    import uvicorn
+
+    uvicorn.run(
+        "app.main:app",
+        host=settings.GATEWAY_HOST,
+        port=settings.GATEWAY_PORT,
+        reload=False,
+        log_level=settings.LOG_LEVEL.lower(),
+    )

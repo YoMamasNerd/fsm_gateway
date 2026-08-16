@@ -1,0 +1,20 @@
+services:
+  fsm-gateway:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: fsm-gateway
+    restart: unless-stopped
+    ports:
+      - "8090:8090"
+    env_file:
+      - .env
+    environment:
+      - GATEWAY_HOST=0.0.0.0
+      - GATEWAY_PORT=8090
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8090/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 5s

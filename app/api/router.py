@@ -16,6 +16,8 @@ from app.api.v1.kalender import router as direct_kalender
 from app.api.v1.schueler import router as direct_schueler
 from app.api.v1.webhooks import router as direct_webhooks
 
+from app.api.dashboard import router as dashboard_router
+
 compat_router = APIRouter(include_in_schema=False)
 compat_router.include_router(direct_auth)
 compat_router.include_router(direct_fahrlehrer)
@@ -24,4 +26,6 @@ compat_router.include_router(direct_schueler)
 compat_router.include_router(direct_finanzen)
 compat_router.include_router(direct_webhooks)
 
+main_router.include_router(dashboard_router)
 main_router.include_router(compat_router)
+

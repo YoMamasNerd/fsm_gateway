@@ -54,6 +54,20 @@ class Settings(BaseSettings):
     LOG_LEVEL: str = Field(default="INFO", description="Log level")
     ENVIRONMENT: str = Field(default="production", description="Environment name")
 
+    # Metrics & Dashboard Settings
+    DASHBOARD_PASSWORD: str = Field(
+        default="",
+        description="Optional password to protect /dashboard (if empty, accessible without password)",
+    )
+    METRICS_DB_PATH: str = Field(
+        default="data/metrics.db",
+        description="Path to SQLite metrics database file",
+    )
+    METRICS_RETENTION_DAYS: int = Field(
+        default=60,
+        description="Number of days to retain detailed request metrics in SQLite",
+    )
+
     model_config = SettingsConfigDict(
         env_file=(".env", "../.env"),
         env_file_encoding="utf-8",

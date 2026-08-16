@@ -11,6 +11,8 @@ from fastapi import Depends, FastAPI, Request, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
+import time
+
 from app.api.router import main_router
 from app.core.cache import cache
 from app.core.client import (
@@ -21,6 +23,7 @@ from app.core.client import (
     fsm_client,
 )
 from app.core.config import settings
+from app.core.metrics import metrics_collector
 from app.core.security import verify_gateway_api_key
 
 # Configure logging
@@ -36,6 +39,9 @@ async def lifespan(app: FastAPI):
     """Application lifespan: Startup & Shutdown events."""
     logger.info("🚀 FSM-Gateway gestartet auf Port %s (Target: %s)", settings.GATEWAY_PORT, settings.FSM_BASE_URL)
     
+    # Initialize metrics collector
+    await metrics_collector.start()
+
     # Pre-seed token or trigger auto-login on startup in background
     if settings.FSM_AUTH_TOKEN:
         await fsm_client.set_auth_token(settings.FSM_AUTH_TOKEN)
@@ -51,25 +57,34 @@ async def lifespan(app: FastAPI):
 
         asyncio.create_task(_warmup_login())
 
-    # Start periodic background cache cleanup task
-    async def _periodic_cache_cleanup():
+    # Start periodic background cleanup task (cache every 60s, metrics every 24h)
+    async def _periodic_cleanup():
+        last_metrics_clean = time.time()
         while True:
             try:
                 await asyncio.sleep(60)
                 purged = await cache.cleanup()
                 if purged > 0:
                     logger.debug("Cache Cleanup: %s abgelaufene Einträge entfernt.", purged)
+
+                # Daily metrics retention cleanup
+                if time.time() - last_metrics_clean > 86400:
+                    deleted_metrics = await metrics_collector.cleanup_old_records()
+                    if deleted_metrics > 0:
+                        logger.info("Metrics Cleanup: %s alte Metrik-Einträge entfernt.", deleted_metrics)
+                    last_metrics_clean = time.time()
             except asyncio.CancelledError:
                 break
             except Exception as e:
-                logger.warning("Fehler beim periodischen Cache-Cleanup: %s", e)
+                logger.warning("Fehler beim periodischen Cleanup: %s", e)
 
-    cleanup_task = asyncio.create_task(_periodic_cache_cleanup())
+    cleanup_task = asyncio.create_task(_periodic_cleanup())
 
     yield
 
     logger.info("🛑 FSM-Gateway wird beendet. Schließe Verbindungen...")
     cleanup_task.cancel()
+    await metrics_collector.stop()
     await fsm_client.close()
     await cache.clear()
 
@@ -87,6 +102,25 @@ app = FastAPI(
     lifespan=lifespan,
     dependencies=[Depends(verify_gateway_api_key)],
 )
+
+# Metrics Middleware (records timing, status code, cache-hit for every request)
+@app.middleware("http")
+async def metrics_middleware(request: Request, call_next):
+    start_time = time.time()
+    response = await call_next(request)
+    duration_ms = (time.time() - start_time) * 1000.0
+    cached = response.headers.get("X-Cache-Hit") == "1"
+    client_ip = request.client.host if request.client else ""
+    metrics_collector.record_request(
+        method=request.method,
+        path=request.url.path,
+        status_code=response.status_code,
+        duration_ms=duration_ms,
+        cached=cached,
+        client_ip=client_ip,
+    )
+    return response
+
 
 # CORS Configuration
 app.add_middleware(
@@ -148,6 +182,8 @@ async def root_info() -> dict[str, Any]:
         "version": "1.0.0",
         "status": "healthy",
         "docs": "/docs",
+        "dashboard": "/dashboard",
+        "metrics": "/metrics",
         "fsm_base_url": settings.FSM_BASE_URL,
     }
 

@@ -85,8 +85,11 @@ class MetricsCollector:
         client_ip: str | None = None,
     ) -> None:
         """Non-blocking method to record an HTTP request event."""
-        # Skip internal metrics/dashboard endpoints to avoid polluting stats
-        if path.startswith("/dashboard/api") or path == "/metrics" or path == "/favicon.ico":
+        # Skip internal system/metrics/dashboard endpoints to avoid polluting stats
+        if (
+            path.startswith("/dashboard")
+            or path in ("/metrics", "/health", "/", "/favicon.ico", "/openapi.json", "/docs", "/redoc")
+        ):
             return
 
         event = {

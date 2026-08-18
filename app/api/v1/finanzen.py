@@ -54,6 +54,10 @@ def _parse_date_time_desc(desc: str | None) -> tuple[str | None, str | None]:
     return date_str, time_str
 
 
+from app.core.cache import cache
+from fastapi import APIRouter, HTTPException, Path, Query, Request, Response, status
+
+
 @router.get(
     "/schueler/{student_uuid}/fahrstunden",
     response_model=FahrstundenResponse,
@@ -61,11 +65,23 @@ def _parse_date_time_desc(desc: str | None) -> tuple[str | None, str | None]:
     description="Liefert alle gefahrenen Stunden, Einheiten und Bezahlstatus für einen Schüler.",
 )
 async def get_fahrstunden(
+    request: Request,
+    response: Response,
     student_uuid: str = Path(..., description="FSM Schüler-UUID"),
     skip_deleted: bool = Query(default=True, description="Gelöschte Einträge ausblenden"),
     page: int = Query(default=1, ge=1, description="Seitennummer"),
     page_size: int = Query(default=100, ge=1, le=500, description="Einträge pro Seite"),
+    refresh: bool = Query(default=False, description="Erzwingt Live-Abruf"),
 ) -> FahrstundenResponse:
+    cache_key = f"schueler:fahrstunden:{student_uuid}:{skip_deleted}:{page}:{page_size}"
+    force_refresh = refresh or request.headers.get("x-refresh-cache") == "1"
+
+    if not force_refresh:
+        cached_res = await cache.get(cache_key)
+        if cached_res is not None:
+            response.headers["X-Cache-Hit"] = "1"
+            return cached_res
+
     try:
         raw_res = await fsm_client.get_schueler_fahrstunden(
             student_uuid=student_uuid,
@@ -115,12 +131,15 @@ async def get_fahrstunden(
                 )
             )
 
-        return FahrstundenResponse(
+        result = FahrstundenResponse(
             student_uuid=student_uuid,
             count=len(lessons),
             total_minutes=total_mins,
             fahrstunden=lessons,
         )
+        await cache.set(cache_key, result, ttl=60)
+        response.headers["X-Cache-Hit"] = "0"
+        return result
 
     except FsmApiError as exc:
         raise HTTPException(status_code=exc.status_code, detail=str(exc))
@@ -139,11 +158,23 @@ async def get_fahrstunden(
     description="Liefert alle gebuchten Leistungen, Grundbeträge, Prüfungen und Zahlungen.",
 )
 async def get_leistungen(
+    request: Request,
+    response: Response,
     student_uuid: str = Path(..., description="FSM Schüler-UUID"),
     skip_deleted: bool = Query(default=True, description="Gelöschte Einträge ignorieren"),
     page: int = Query(default=1, ge=1, description="Seitennummer"),
     page_size: int = Query(default=500, ge=1, le=1000, description="Einträge pro Seite"),
+    refresh: bool = Query(default=False, description="Erzwingt Live-Abruf"),
 ) -> LeistungenResponse:
+    cache_key = f"schueler:leistungen:{student_uuid}:{skip_deleted}:{page}:{page_size}"
+    force_refresh = refresh or request.headers.get("x-refresh-cache") == "1"
+
+    if not force_refresh:
+        cached_res = await cache.get(cache_key)
+        if cached_res is not None:
+            response.headers["X-Cache-Hit"] = "1"
+            return cached_res
+
     try:
         raw_res = await fsm_client.get_schueler_leistungen(
             student_uuid=student_uuid,
@@ -190,13 +221,16 @@ async def get_leistungen(
                 )
             )
 
-        return LeistungenResponse(
+        result = LeistungenResponse(
             student_uuid=student_uuid,
             count=len(items),
             total_kosten=round(total_kosten, 2),
             total_zahlungen=round(total_zahlungen, 2),
             leistungen=items,
         )
+        await cache.set(cache_key, result, ttl=60)
+        response.headers["X-Cache-Hit"] = "0"
+        return result
 
     except FsmApiError as exc:
         raise HTTPException(status_code=exc.status_code, detail=str(exc))
@@ -230,6 +264,10 @@ async def create_zahlung(
             text=payload.text,
             belegnummer=payload.belegnummer,
         )
+
+        # Invalidate student's account balance and services cache
+        await cache.delete_prefix(f"schueler:leistungen:{student_uuid}")
+        await cache.delete_prefix(f"schueler:details:{student_uuid}")
 
         return ZahlungResponse(
             success=True,

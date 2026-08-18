@@ -7,7 +7,9 @@ import logging
 from typing import Any
 from fastapi import APIRouter, HTTPException, Path, Query, status
 
+from app.core.cache import cache
 from app.core.client import FsmApiError, fsm_client
+from app.core.config import settings
 from app.schemas.kalender import (
     KalenderEvent,
     KalenderResponse,
@@ -16,6 +18,7 @@ from app.schemas.kalender import (
     TerminCreateResponse,
     TerminUpdateRequest,
 )
+from fastapi import APIRouter, HTTPException, Path, Query, Request, Response, status
 
 logger = logging.getLogger("fsm_gateway.api.kalender")
 router = APIRouter(tags=["Kalender & Termine"])
@@ -40,6 +43,8 @@ def _parse_iso_datetime(val: Any) -> dt.datetime | None:
     description="Liefert alle Fahrstunden, Theorie-Einheiten und Blocker für einen Zeitraum normalisiert zurück.",
 )
 async def get_kalender(
+    request: Request,
+    response: Response,
     fahrlehrer_id: str = Path(..., description="FSM UUID des Fahrlehrers"),
     start: str | None = Query(default=None, alias="von", description="Startdatum (z.B. 2026-08-16 oder ISO)"),
     end: str | None = Query(default=None, alias="bis", description="Enddatum (z.B. 2026-08-23 oder ISO)"),
@@ -47,10 +52,20 @@ async def get_kalender(
     end_datum: str | None = Query(default=None, alias="endDatum", description="Kompatibilitätsalias"),
     only_buchbar: bool = Query(default=False, description="Nur buchbare Slots"),
     skip_deleted: bool = Query(default=True, description="Gelöschte Termine ausblenden"),
+    refresh: bool = Query(default=False, description="Erzwingt Live-Abruf und aktualisiert den Cache"),
 ) -> KalenderResponse:
     # Resolve parameters
     effective_start = start or start_datum or dt.date.today().isoformat()
     effective_end = end or end_datum or (dt.date.today() + dt.timedelta(days=7)).isoformat()
+
+    cache_key = f"kalender:{fahrlehrer_id}:{effective_start}:{effective_end}:{only_buchbar}:{skip_deleted}"
+    force_refresh = refresh or request.headers.get("x-refresh-cache") == "1"
+
+    if not force_refresh:
+        cached_res = await cache.get(cache_key)
+        if cached_res is not None:
+            response.headers["X-Cache-Hit"] = "1"
+            return cached_res
 
     try:
         raw_events = await fsm_client.get_kalender(
@@ -112,13 +127,18 @@ async def get_kalender(
                 )
             )
 
-        return KalenderResponse(
+        result = KalenderResponse(
             fahrlehrer_id=fahrlehrer_id,
             start=effective_start,
             end=effective_end,
             count=len(events),
             events=events,
         )
+
+        # Cache calendar results for 60s
+        await cache.set(cache_key, result, ttl=60)
+        response.headers["X-Cache-Hit"] = "0"
+        return result
 
     except FsmApiError as exc:
         raise HTTPException(status_code=exc.status_code, detail=str(exc))
@@ -163,6 +183,9 @@ async def create_termin(payload: TerminCreateRequest) -> TerminCreateResponse:
                 detail="FSM hat keine Termin-ID zurückgegeben.",
             )
 
+        # Invalidate calendar cache for this instructor immediately
+        await cache.delete_prefix(f"kalender:{payload.fahrlehrer_id}")
+
         return TerminCreateResponse(
             success=True,
             created_ids=created_ids,
@@ -202,6 +225,13 @@ async def update_termin(
             fahrzeug_id=payload.fahrzeug_id,
             gebucht=payload.gebucht,
         )
+
+        # Invalidate calendar cache
+        if payload.fahrlehrer_id:
+            await cache.delete_prefix(f"kalender:{payload.fahrlehrer_id}")
+        else:
+            await cache.delete_prefix("kalender:")
+
         return TerminActionResponse(success=success, termin_id=termin_id)
     except FsmApiError as exc:
         raise HTTPException(status_code=exc.status_code, detail=str(exc))
@@ -224,6 +254,10 @@ async def delete_termin(
 ) -> TerminActionResponse:
     try:
         success = await fsm_client.delete_termin(termin_id=termin_id)
+
+        # Invalidate all calendar caches
+        await cache.delete_prefix("kalender:")
+
         return TerminActionResponse(success=success, deleted_id=termin_id)
     except FsmApiError as exc:
         raise HTTPException(status_code=exc.status_code, detail=str(exc))

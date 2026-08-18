@@ -96,3 +96,30 @@ fsm_gateway/
 2. Lies dieses `PROJECT_BLUEPRINT.md` und `TODO.md`.
 3. Erstelle die Projektdateien (`requirements.txt`, `app/`, `tests/`, `Dockerfile`, `docker-compose.yml`).
 4. Führe die Tests aus und bereite das Deployment auf DocMan vor.
+
+---
+
+## ⚡ 6. Intelligente Caching-Architektur & Troubleshooting
+
+### Funktionsweise
+Um FSM-API-Latenzen von 400-900 ms auf unter 1 ms zu senken, nutzt das Gateway einen In-Memory `AsyncTTLCache`:
+
+| Entität | Cache-Key Pattern | Standard-TTL | Wann wird invalidiert? |
+|---|---|---|---|
+| **Fahrlehrer** | `fsm:fahrlehrer:active:{bool}` | 300s (5 Min) | `POST /v1/fahrlehrer/refresh-cache` |
+| **Kalender** | `kalender:{fahrlehrer_id}:{von}:{bis}:{buchbar}:{deleted}` | 60s (1 Min) | Bei jedem `POST /v1/termine`, `PUT /v1/termine/{id}`, `DELETE /v1/termine/{id}` |
+| **Schülerkartei** | `schueler:details:{uuid}` | 120s (2 Min) | Bei Zahlungseinbuchung oder SumUp-Webhook |
+| **Fahrstunden** | `schueler:fahrstunden:{uuid}:...` | 60s (1 Min) | Zeitablauf (60s) oder Cache-Clear |
+| **Leistungskonto** | `schueler:leistungen:{uuid}:...` | 60s (1 Min) | `POST /v1/schueler/{uuid}/zahlung` oder SumUp-Webhook |
+
+### Cache-Bypass & Hard-Refresh
+Jeder GET-Endpunkt unterstützt:
+1. **Query-Parameter**: `?refresh=true` (bzw. `?refresh=1`)
+2. **HTTP-Header**: `X-Refresh-Cache: 1`
+Wird dies übergeben, wird der Cache ignoriert, die FSM Cloud API live abgefragt und der Cache aktualisiert.
+
+### Troubleshooting: Was tun, wenn Daten im Cache hängen?
+1. **Globaler Cache-Clear**: `POST https://fsm.arbeits-zimmer.de/v1/fahrlehrer/cache/clear`
+2. **Container-Neustart**: `docker compose restart fsm-gateway` leert den Arbeitsspeicher-Cache restlos.
+3. **Response-Header prüfen**: Im Response-Header `X-Cache-Hit` (`1` = aus Cache, `0` = live von FSM) lässt sich jederzeit nachvollziehen, woher die Daten kamen.
+

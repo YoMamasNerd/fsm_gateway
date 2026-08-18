@@ -101,6 +101,10 @@ async def handle_sumup_webhook(payload: SumUpWebhookEvent) -> SumUpWebhookRespon
                 ttl=172800,
             )
 
+        # Invalidate student cache
+        await cache.delete_prefix(f"schueler:leistungen:{target_student_uuid}")
+        await cache.delete_prefix(f"schueler:details:{target_student_uuid}")
+
         return SumUpWebhookResponse(
             success=True,
             action_taken="booked_payment",

@@ -313,3 +313,35 @@ async def test_sumup_webhook(async_client: httpx.AsyncClient):
     res2_data = resp2.json()
     assert res2_data["success"] is True
     assert res2_data["action_taken"] == "already_processed"
+
+
+@pytest.mark.asyncio
+@respx.mock
+async def test_cache_hit_and_invalidation(async_client: httpx.AsyncClient):
+    fl_id = "test-fl-cache"
+
+    respx.get(f"https://api.fahrschulmanager.de/v1/termine/lehrer/{fl_id}").respond(
+        status_code=200,
+        json=[{"id": "t-cache-1", "von": "2026-08-20T08:00:00.000Z", "bis": "2026-08-20T09:30:00.000Z", "fidTerminart": "FS"}],
+    )
+
+    # 1. First call: Cache miss
+    resp1 = await async_client.get(f"/v1/kalender/{fl_id}?von=2026-08-20&bis=2026-08-21")
+    assert resp1.status_code == 200
+    assert resp1.headers.get("x-cache-hit") == "0"
+
+    # 2. Second call: Cache hit (without reaching FSM API)
+    resp2 = await async_client.get(f"/v1/kalender/{fl_id}?von=2026-08-20&bis=2026-08-21")
+    assert resp2.status_code == 200
+    assert resp2.headers.get("x-cache-hit") == "1"
+
+    # 3. Clear cache endpoint
+    clear_resp = await async_client.post("/v1/fahrlehrer/cache/clear")
+    assert clear_resp.status_code == 200
+    assert clear_resp.json()["success"] is True
+
+    # 4. Third call after clear: Cache miss again
+    resp3 = await async_client.get(f"/v1/kalender/{fl_id}?von=2026-08-20&bis=2026-08-21")
+    assert resp3.status_code == 200
+    assert resp3.headers.get("x-cache-hit") == "0"
+

@@ -65,3 +65,14 @@ async def refresh_fahrlehrer_cache() -> FahrlehrerListResponse:
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Cache-Aktualisierung fehlgeschlagen: {exc}",
         )
+
+
+@router.post(
+    "/cache/clear",
+    summary="Gesamten Gateway-Cache leeren",
+    description="Leert alle im Speicher gecachten Fahrlehrer-, Kalender-, Schüler- und Leistungsdaten.",
+)
+async def clear_all_cache() -> dict[str, bool | str]:
+    await cache.clear()
+    return {"success": True, "message": "Gesamter Gateway-Cache wurde erfolgreich geleert."}
+

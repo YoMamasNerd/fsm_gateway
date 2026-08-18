@@ -139,6 +139,10 @@ async def search_schueler_get(
     return await search_schueler_post(req)
 
 
+from app.core.cache import cache
+from fastapi import APIRouter, HTTPException, Path, Query, Request, Response, status
+
+
 @router.get(
     "/{student_uuid}",
     response_model=SchuelerDetails,
@@ -146,8 +150,20 @@ async def search_schueler_get(
     description="Liefert alle Stammdaten, Adress-, Klassen- und Kontaktinformationen eines Schülers.",
 )
 async def get_schueler_details(
+    request: Request,
+    response: Response,
     student_uuid: str = Path(..., description="FSM Schüler-UUID"),
+    refresh: bool = Query(default=False, description="Erzwingt Live-Abruf"),
 ) -> SchuelerDetails:
+    cache_key = f"schueler:details:{student_uuid}"
+    force_refresh = refresh or request.headers.get("x-refresh-cache") == "1"
+
+    if not force_refresh:
+        cached_res = await cache.get(cache_key)
+        if cached_res is not None:
+            response.headers["X-Cache-Hit"] = "1"
+            return cached_res
+
     try:
         raw = await fsm_client.get_schueler_details(student_uuid=student_uuid)
         if not raw or not isinstance(raw, dict):
@@ -163,7 +179,7 @@ async def get_schueler_details(
         saldo_val = raw.get("saldo")
         saldo_float = float(saldo_val) if saldo_val is not None else None
 
-        return SchuelerDetails(
+        result = SchuelerDetails(
             id=student_uuid,
             vorname=vorname,
             nachname=nachname,
@@ -184,6 +200,10 @@ async def get_schueler_details(
             gesperrt=bool(raw.get("gesperrt", False)),
             raw_data=raw,
         )
+
+        await cache.set(cache_key, result, ttl=120)
+        response.headers["X-Cache-Hit"] = "0"
+        return result
 
     except FsmApiError as exc:
         raise HTTPException(status_code=exc.status_code, detail=str(exc))

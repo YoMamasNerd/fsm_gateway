@@ -204,6 +204,16 @@ async def healthcheck() -> dict[str, Any]:
     }
 
 
+@app.get("/favicon.ico", include_in_schema=False)
+async def favicon():
+    from pathlib import Path
+    from fastapi.responses import FileResponse, Response
+    fav_path = Path("static/favicon.ico")
+    if fav_path.is_file():
+        return FileResponse(fav_path, media_type="image/x-icon")
+    return Response(status_code=204)
+
+
 # Include Routers
 app.include_router(main_router)
 

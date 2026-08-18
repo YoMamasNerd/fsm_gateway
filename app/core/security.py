@@ -11,6 +11,7 @@ http_bearer = HTTPBearer(auto_error=False)
 
 EXEMPT_PATHS = {
     "/",
+    "/favicon.ico",
     "/metrics",
     "/docs",
     "/redoc",

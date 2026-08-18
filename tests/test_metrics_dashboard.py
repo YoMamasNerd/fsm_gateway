@@ -117,3 +117,55 @@ async def test_dashboard_auth_protection(monkeypatch):
         client.cookies.set("fsm_dash_auth", cookie)
         res_auth_stats = await client.get("/dashboard/api/stats")
         assert res_auth_stats.status_code == 200
+
+
+@pytest.mark.asyncio
+async def test_dashboard_sso_flow(monkeypatch):
+    import respx
+    import json
+    import base64
+
+    monkeypatch.setattr(settings, "VOIDAUTH_CLIENT_ID", "test-client-id")
+    monkeypatch.setattr(settings, "VOIDAUTH_CLIENT_SECRET", "test-client-secret")
+    monkeypatch.setattr(settings, "VOIDAUTH_ISSUER_URL", "https://auth.example.com/oidc")
+
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        # 1. Login page shows SSO button
+        res_dash = await client.get("/dashboard")
+        assert res_dash.status_code == 200
+        assert "Mit VoidAuth SSO anmelden" in res_dash.text
+
+        # 2. Initiate SSO login -> 302 to VoidAuth with state
+        res_sso = await client.get("/dashboard/auth/sso/login", follow_redirects=False)
+        assert res_sso.status_code == 302
+        assert "auth.example.com/oidc/auth" in res_sso.headers["location"]
+        assert "fsm_dash_sso_state" in res_sso.cookies
+        sso_state = res_sso.cookies["fsm_dash_sso_state"]
+
+        # 3. Callback code exchange
+        client.cookies.set("fsm_dash_sso_state", sso_state)
+        sample_id_token = "eyJhbGciOiJIUzI1NiJ9." + base64.urlsafe_b64encode(
+            json.dumps({"sub": "usr-123", "preferred_username": "jonas"}).encode()
+        ).decode().rstrip("=") + ".signature"
+
+        with respx.mock(assert_all_called=True) as respx_mock:
+            respx_mock.post("https://auth.example.com/oidc/token").respond(
+                status_code=200,
+                json={"access_token": "acc_123", "id_token": sample_id_token, "token_type": "Bearer"},
+            )
+
+            res_callback = await client.get(
+                f"/dashboard/auth/sso/callback?code=auth_code_xyz&state={sso_state}",
+                follow_redirects=False,
+            )
+            assert res_callback.status_code == 302
+            assert res_callback.headers["location"] == "/dashboard"
+            assert "fsm_dash_auth" in res_callback.cookies
+
+            # 4. Access dashboard stats with SSO session cookie
+            dash_cookie = res_callback.cookies["fsm_dash_auth"]
+            client.cookies.set("fsm_dash_auth", dash_cookie)
+            res_stats = await client.get("/dashboard/api/stats")
+            assert res_stats.status_code == 200
+

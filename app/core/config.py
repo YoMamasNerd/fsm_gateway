@@ -68,6 +68,22 @@ class Settings(BaseSettings):
         description="Number of days to retain detailed request metrics in SQLite",
     )
 
+    # VoidAuth SSO for Dashboard
+    VOIDAUTH_CLIENT_ID: str = Field(default="", description="VoidAuth OIDC Client ID")
+    VOIDAUTH_CLIENT_SECRET: str = Field(default="", description="VoidAuth OIDC Client Secret")
+    VOIDAUTH_ISSUER_URL: str = Field(
+        default="",
+        description="VoidAuth OIDC Issuer URL (e.g. https://auth.arbeits-zimmer.de/oidc)",
+    )
+    VOIDAUTH_REDIRECT_URI: str = Field(
+        default="",
+        description="Custom Redirect URI override (optional)",
+    )
+
+    @property
+    def VOIDAUTH_ENABLED(self) -> bool:
+        return bool(self.VOIDAUTH_CLIENT_ID and self.VOIDAUTH_CLIENT_SECRET and self.VOIDAUTH_ISSUER_URL)
+
     model_config = SettingsConfigDict(
         env_file=(".env", "../.env"),
         env_file_encoding="utf-8",

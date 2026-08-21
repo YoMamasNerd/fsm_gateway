@@ -424,4 +424,32 @@ async def test_calendar_write_through_invalidation(async_client: httpx.AsyncClie
     assert route_get.call_count == 2
 
 
+@pytest.mark.asyncio
+async def test_unified_cache_operations():
+    from app.core.cache import cache
+    
+    # Test set & get
+    await cache.set("test:valkey:1", {"msg": "hello", "count": 42}, ttl=60)
+    val = await cache.get("test:valkey:1")
+    assert val == {"msg": "hello", "count": 42}
+
+    # Test SWR get_or_stale
+    val_swr, is_stale = await cache.get_or_stale("test:valkey:1", stale_window=100.0)
+    assert val_swr == {"msg": "hello", "count": 42}
+    assert is_stale is False
+
+    # Test delete_prefix
+    await cache.set("test:valkey:2", "second", ttl=60)
+    del_count = await cache.delete_prefix("test:valkey:")
+    assert del_count >= 2
+    assert await cache.get("test:valkey:1") is None
+    assert await cache.get("test:valkey:2") is None
+
+    # Test backend info
+    info = cache.get_info()
+    assert "backend" in info
+    assert "connected" in info
+
+
+
 

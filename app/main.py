@@ -6,10 +6,12 @@ import asyncio
 import logging
 from contextlib import asynccontextmanager
 from typing import Any
+from pathlib import Path
 
 from fastapi import Depends, FastAPI, Request, status
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
+from fastapi.responses import FileResponse, JSONResponse, Response
+from fastapi.staticfiles import StaticFiles
 
 import time
 
@@ -102,6 +104,11 @@ app = FastAPI(
     lifespan=lifespan,
     dependencies=[Depends(verify_gateway_api_key)],
 )
+
+# Mount static directory for favicons & assets
+static_path = Path(__file__).resolve().parent.parent / "static"
+if static_path.is_dir():
+    app.mount("/static", StaticFiles(directory=str(static_path)), name="static")
 
 # Metrics Middleware (records timing, status code, cache-hit for every request)
 @app.middleware("http")

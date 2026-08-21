@@ -510,17 +510,10 @@ class FSMClient:
         end_date: dt.date | dt.datetime | str,
         only_buchbar: bool = False,
         skip_deleted: bool = True,
-        fresh: bool = False,
     ) -> list[dict[str, Any]]:
-        """Retrieves calendar events for an instructor in a given timeframe (cached 60s)."""
+        """Retrieves raw calendar events for an instructor from FSM API."""
         start_iso = _normalize_iso_datetime(start_date, is_end=False)
         end_iso = _normalize_iso_datetime(end_date, is_end=True)
-
-        cache_key = f"fsm:kalender:{fahrlehrer_id}:{start_iso}:{end_iso}:{only_buchbar}"
-        if not fresh:
-            cached = await cache.get(cache_key)
-            if cached is not None and isinstance(cached, list):
-                return cached
 
         params = {
             "onlyBuchbar": "true" if only_buchbar else "false",
@@ -532,10 +525,7 @@ class FSMClient:
 
         path = f"v1/termine/lehrer/{fahrlehrer_id}"
         res = await self.request("GET", path, params=params)
-        events = res if isinstance(res, list) else []
-
-        await cache.set(cache_key, events, ttl=60)
-        return events
+        return res if isinstance(res, list) else []
 
     async def create_termin(
         self,

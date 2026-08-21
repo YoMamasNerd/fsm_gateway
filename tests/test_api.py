@@ -345,3 +345,83 @@ async def test_cache_hit_and_invalidation(async_client: httpx.AsyncClient):
     assert resp3.status_code == 200
     assert resp3.headers.get("x-cache-hit") == "0"
 
+
+@pytest.mark.asyncio
+@respx.mock
+async def test_calendar_date_normalization_and_forced_refresh(async_client: httpx.AsyncClient):
+    fl_id = "test-fl-norm"
+
+    route = respx.get(f"https://api.fahrschulmanager.de/v1/termine/lehrer/{fl_id}").respond(
+        status_code=200,
+        json=[{"id": "t-norm-1", "von": "2026-08-21T09:00:00.000Z", "bis": "2026-08-21T10:30:00.000Z", "fidTerminart": "FS"}],
+    )
+
+    # 1. Request with full ISO datetime string (e.g. 2026-08-21T22:15:00.123456)
+    resp1 = await async_client.get(f"/v1/kalender/{fl_id}?von=2026-08-21T22:15:00.123456&bis=2026-08-28T22:15:00.123456")
+    assert resp1.status_code == 200
+    assert resp1.headers.get("x-cache-hit") == "0"
+    assert route.call_count == 1
+
+    # 2. Subsequent request 15 minutes later with different sub-second timestamp -> Must hit the same normalized cache!
+    resp2 = await async_client.get(f"/v1/kalender/{fl_id}?von=2026-08-21T22:30:00.987654&bis=2026-08-28T22:30:00.987654")
+    assert resp2.status_code == 200
+    assert resp2.headers.get("x-cache-hit") == "1"
+    assert route.call_count == 1  # No extra call to FSM Cloud!
+
+    # 3. Request with date-only string on the same day -> Must also hit the same cache!
+    resp3 = await async_client.get(f"/v1/kalender/{fl_id}?von=2026-08-21&bis=2026-08-28")
+    assert resp3.status_code == 200
+    assert resp3.headers.get("x-cache-hit") == "1"
+    assert route.call_count == 1
+
+    # 4. Request with ?refresh=true -> Must bypass cache and query FSM Cloud
+    resp4 = await async_client.get(f"/v1/kalender/{fl_id}?von=2026-08-21&bis=2026-08-28&refresh=true")
+    assert resp4.status_code == 200
+    assert resp4.headers.get("x-cache-hit") == "0"
+    assert route.call_count == 2
+
+
+@pytest.mark.asyncio
+@respx.mock
+async def test_calendar_write_through_invalidation(async_client: httpx.AsyncClient):
+    fl_id = "test-fl-write-through"
+
+    route_get = respx.get(f"https://api.fahrschulmanager.de/v1/termine/lehrer/{fl_id}").respond(
+        status_code=200,
+        json=[{"id": "t-wt-1", "von": "2026-08-21T09:00:00.000Z", "bis": "2026-08-21T10:30:00.000Z", "fidTerminart": "FS"}],
+    )
+    respx.post("https://api.fahrschulmanager.de/v1/termine").respond(
+        status_code=200,
+        json={"viewModel": {"id": "new-termin-1"}},
+    )
+
+    # 1. Warm cache
+    resp1 = await async_client.get(f"/v1/kalender/{fl_id}?von=2026-08-21&bis=2026-08-28")
+    assert resp1.status_code == 200
+    assert resp1.headers.get("x-cache-hit") == "0"
+    assert route_get.call_count == 1
+
+    # 2. Second request hits cache
+    resp2 = await async_client.get(f"/v1/kalender/{fl_id}?von=2026-08-21&bis=2026-08-28")
+    assert resp2.status_code == 200
+    assert resp2.headers.get("x-cache-hit") == "1"
+    assert route_get.call_count == 1
+
+    # 3. Create appointment -> Write-through invalidation must purge cache
+    create_resp = await async_client.post("/v1/termine", json={
+        "fahrlehrer_id": fl_id,
+        "von": "2026-08-22T10:00:00",
+        "bis": "2026-08-22T11:00:00",
+        "titel": "Blocker",
+        "terminart": "PX",
+    })
+    assert create_resp.status_code == 201
+
+    # 4. Next GET must fetch live from FSM
+    resp3 = await async_client.get(f"/v1/kalender/{fl_id}?von=2026-08-21&bis=2026-08-28")
+    assert resp3.status_code == 200
+    assert resp3.headers.get("x-cache-hit") == "0"
+    assert route_get.call_count == 2
+
+
+

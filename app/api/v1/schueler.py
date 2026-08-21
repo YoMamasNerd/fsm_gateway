@@ -6,6 +6,7 @@ import logging
 from typing import Any
 from fastapi import APIRouter, HTTPException, Path, Query, status
 
+from app.core.config import settings
 from app.core.client import FsmApiError, fsm_client
 from app.schemas.schueler import (
     SchuelerDetails,
@@ -201,7 +202,7 @@ async def get_schueler_details(
             raw_data=raw,
         )
 
-        await cache.set(cache_key, result, ttl=120)
+        await cache.set(cache_key, result, ttl=settings.SCHUELER_CACHE_TTL_SECONDS)
         response.headers["X-Cache-Hit"] = "0"
         return result
 

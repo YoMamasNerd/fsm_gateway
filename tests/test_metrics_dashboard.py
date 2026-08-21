@@ -163,9 +163,14 @@ async def test_dashboard_sso_flow(monkeypatch):
             assert res_callback.headers["location"] == "/dashboard"
             assert "fsm_dash_auth" in res_callback.cookies
 
-            # 4. Access dashboard stats with SSO session cookie
             dash_cookie = res_callback.cookies["fsm_dash_auth"]
             client.cookies.set("fsm_dash_auth", dash_cookie)
             res_stats = await client.get("/dashboard/api/stats")
             assert res_stats.status_code == 200
+
+            # 5. Clear cache via dashboard API
+            res_clear = await client.post("/dashboard/api/cache/clear")
+            assert res_clear.status_code == 200
+            assert res_clear.json()["success"] is True
+
 

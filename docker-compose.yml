@@ -1,4 +1,19 @@
 services:
+  fsm-valkey:
+    image: valkey/valkey:8-alpine
+    container_name: fsm-valkey
+    restart: unless-stopped
+    command: valkey-server --appendonly yes --save 60 1 --maxmemory 256mb --maxmemory-policy volatile-lru
+    volumes:
+      - fsm_valkey_data:/data
+    networks:
+      - default
+    healthcheck:
+      test: ["CMD", "valkey-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+
   fsm-gateway:
     build:
       context: .
@@ -12,12 +27,22 @@ services:
     environment:
       - GATEWAY_HOST=0.0.0.0
       - GATEWAY_PORT=8090
+      - VALKEY_URL=redis://fsm-valkey:6379/0
+    depends_on:
+      fsm-valkey:
+        condition: service_healthy
     volumes:
       - ./data:/app/data
+    networks:
+      - default
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8090/health"]
       interval: 30s
       timeout: 5s
       retries: 3
       start_period: 5s
+
+volumes:
+  fsm_valkey_data:
+
 

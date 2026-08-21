@@ -41,6 +41,9 @@ async def lifespan(app: FastAPI):
     """Application lifespan: Startup & Shutdown events."""
     logger.info("🚀 FSM-Gateway gestartet auf Port %s (Target: %s)", settings.GATEWAY_PORT, settings.FSM_BASE_URL)
     
+    # Initialize cache backend (Valkey if configured, or memory fallback)
+    await cache.init()
+
     # Initialize metrics collector
     await metrics_collector.start()
 
@@ -88,7 +91,7 @@ async def lifespan(app: FastAPI):
     cleanup_task.cancel()
     await metrics_collector.stop()
     await fsm_client.close()
-    await cache.clear()
+    await cache.close()
 
 
 app = FastAPI(
@@ -207,6 +210,7 @@ async def healthcheck() -> dict[str, Any]:
         "status": "healthy",
         "service": "fsm_gateway",
         "cache_items": cache_items,
+        "cache_backend": cache.get_info(),
         "has_token": bool(token),
     }
 

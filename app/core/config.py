@@ -43,6 +43,10 @@ class Settings(BaseSettings):
         default="",
         description="Optional secret key to require for inbound requests to this Gateway",
     )
+    VALKEY_URL: str = Field(
+        default="",
+        description="Optional Valkey / Redis connection URL (e.g. redis://fsm-valkey:6379/0). If empty or unreachable, falls back to memory cache.",
+    )
     CACHE_TTL_SECONDS: int = Field(
         default=300,
         description="Default TTL in seconds for general cached entities",

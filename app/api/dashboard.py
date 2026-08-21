@@ -677,6 +677,10 @@ def _render_dashboard_html() -> str:
         let currentRange = '24h';
         let trafficChart = null;
         let statusChart = null;
+        let lastTrafficHash = null;
+        let lastStatusHash = null;
+        let lastTopEndpointsHash = null;
+        let lastLiveFeedHash = null;
 
         function setRange(range) {
             currentRange = range;
@@ -687,6 +691,10 @@ def _render_dashboard_html() -> str:
             event.target.classList.remove('btn-dark');
             event.target.classList.add('btn-primary');
             document.getElementById('chartRangeLabel').textContent = range === '24h' ? '24 Stunden' : (range === '7d' ? '7 Tage' : '30 Tage');
+            // Reset hashes so new range renders immediately
+            lastTrafficHash = null;
+            lastStatusHash = null;
+            lastTopEndpointsHash = null;
             loadStats();
         }
 
@@ -745,10 +753,10 @@ def _render_dashboard_html() -> str:
                     document.getElementById('kpiErrorRate').className = 'fw-bold mb-0 text-success';
                 }
 
-                // Render Traffic Chart
+                // Render Traffic Chart (mit Datenvergleich & ohne störende Neu-Animation)
                 renderTrafficChart(data.timeseries);
 
-                // Render Status Chart
+                // Render Status Chart (mit Datenvergleich & ohne störende Neu-Animation)
                 renderStatusChart(data.status_codes);
 
                 // Render Top Endpoints
@@ -759,14 +767,30 @@ def _render_dashboard_html() -> str:
         }
 
         function renderTrafficChart(timeseries) {
-            const labels = timeseries.map(t => t.time);
-            const totalData = timeseries.map(t => t.total);
-            const cachedData = timeseries.map(t => t.cached);
-            const errorData = timeseries.map(t => t.errors);
+            const labels = (timeseries || []).map(t => t.time);
+            const cachedData = (timeseries || []).map(t => t.cached);
+            const directData = (timeseries || []).map(t => Math.max(0, t.total - t.cached));
+            const errorData = (timeseries || []).map(t => t.errors);
+
+            const hash = JSON.stringify({ labels, directData, cachedData, errorData });
+            if (hash === lastTrafficHash && trafficChart) {
+                return; // Keine Datenänderung: kein Re-Render
+            }
+            lastTrafficHash = hash;
 
             const ctx = document.getElementById('trafficChart').getContext('2d');
-            if (trafficChart) trafficChart.destroy();
 
+            if (trafficChart) {
+                // Bestehende Chart-Instanz aktualisieren ohne Zerstören und ohne Animation
+                trafficChart.data.labels = labels;
+                trafficChart.data.datasets[0].data = directData;
+                trafficChart.data.datasets[1].data = cachedData;
+                trafficChart.data.datasets[2].data = errorData;
+                trafficChart.update('none');
+                return;
+            }
+
+            // Initiale Erstellung (Animation deaktiviert für sofortige, flimmerfreie Anzeige)
             trafficChart = new Chart(ctx, {
                 type: 'bar',
                 data: {
@@ -774,7 +798,7 @@ def _render_dashboard_html() -> str:
                     datasets: [
                         {
                             label: 'Direkte Requests',
-                            data: totalData.map((tot, idx) => Math.max(0, tot - cachedData[idx])),
+                            data: directData,
                             backgroundColor: '#3b82f6',
                             borderRadius: 4,
                             stack: 'traffic',
@@ -798,6 +822,7 @@ def _render_dashboard_html() -> str:
                 options: {
                     responsive: true,
                     maintainAspectRatio: false,
+                    animation: false,
                     scales: {
                         x: { stacked: true, grid: { color: '#1f2937' }, ticks: { color: '#94a3b8' } },
                         y: { stacked: true, beginAtZero: true, grid: { color: '#1f2937' }, ticks: { color: '#94a3b8', precision: 0 } }
@@ -811,9 +836,9 @@ def _render_dashboard_html() -> str:
         }
 
         function renderStatusChart(statusCodes) {
-            const labels = Object.keys(statusCodes);
-            const data = Object.values(statusCodes);
-            const colors = labels.map(code => {
+            let labels = Object.keys(statusCodes || {});
+            let data = Object.values(statusCodes || {});
+            let colors = labels.map(code => {
                 const c = parseInt(code, 10);
                 if (c >= 200 && c < 300) return '#10b981';
                 if (c >= 300 && c < 400) return '#06b6d4';
@@ -821,15 +846,30 @@ def _render_dashboard_html() -> str:
                 return '#ef4444';
             });
 
-            const ctx = document.getElementById('statusChart').getContext('2d');
-            if (statusChart) statusChart.destroy();
-
             if (labels.length === 0) {
-                labels.push('Keine Daten');
-                data.push(1);
-                colors.push('#374151');
+                labels = ['Keine Daten'];
+                data = [1];
+                colors = ['#374151'];
             }
 
+            const hash = JSON.stringify({ labels, data });
+            if (hash === lastStatusHash && statusChart) {
+                return; // Keine Datenänderung: kein Re-Render
+            }
+            lastStatusHash = hash;
+
+            const ctx = document.getElementById('statusChart').getContext('2d');
+
+            if (statusChart) {
+                // Bestehende Chart-Instanz aktualisieren ohne Zerstören und ohne Animation
+                statusChart.data.labels = labels;
+                statusChart.data.datasets[0].data = data;
+                statusChart.data.datasets[0].backgroundColor = colors;
+                statusChart.update('none');
+                return;
+            }
+
+            // Initiale Erstellung (Animation deaktiviert)
             statusChart = new Chart(ctx, {
                 type: 'doughnut',
                 data: {
@@ -839,6 +879,7 @@ def _render_dashboard_html() -> str:
                 options: {
                     responsive: true,
                     maintainAspectRatio: false,
+                    animation: false,
                     plugins: {
                         legend: { position: 'bottom', labels: { color: '#cbd5e1', font: { size: 11 } } }
                     }
@@ -847,6 +888,12 @@ def _render_dashboard_html() -> str:
         }
 
         function renderTopEndpoints(endpoints) {
+            const hash = JSON.stringify(endpoints || []);
+            if (hash === lastTopEndpointsHash) {
+                return;
+            }
+            lastTopEndpointsHash = hash;
+
             const tbody = document.getElementById('topEndpointsBody');
             if (!endpoints || endpoints.length === 0) {
                 tbody.innerHTML = '<tr><td colspan="5" class="text-center text-secondary py-3">Noch keine Anfragen erfasst</td></tr>';
@@ -870,6 +917,12 @@ def _render_dashboard_html() -> str:
                 const res = await fetch('/dashboard/api/live');
                 if (!res.ok) return;
                 const data = await res.json();
+
+                const hash = JSON.stringify(data.recent || []);
+                if (hash === lastLiveFeedHash) {
+                    return;
+                }
+                lastLiveFeedHash = hash;
 
                 const tbody = document.getElementById('liveRequestsBody');
                 if (!data.recent || data.recent.length === 0) {

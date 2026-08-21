@@ -211,13 +211,36 @@ async def healthcheck() -> dict[str, Any]:
     }
 
 
-@app.get("/favicon.ico", include_in_schema=False)
-async def favicon():
-    from pathlib import Path
-    from fastapi.responses import FileResponse, Response
-    fav_path = Path("static/favicon.ico")
+@app.api_route("/favicon.ico", methods=["GET", "HEAD"], include_in_schema=False)
+async def favicon_ico():
+    fav_path = static_path / "favicon.ico"
     if fav_path.is_file():
         return FileResponse(fav_path, media_type="image/x-icon")
+    return Response(status_code=204)
+
+
+@app.api_route("/favicon.svg", methods=["GET", "HEAD"], include_in_schema=False)
+async def favicon_svg():
+    fav_path = static_path / "favicon.svg"
+    if fav_path.is_file():
+        return FileResponse(fav_path, media_type="image/svg+xml")
+    return Response(status_code=204)
+
+
+@app.api_route("/favicon.png", methods=["GET", "HEAD"], include_in_schema=False)
+async def favicon_png():
+    fav_path = static_path / "favicon-32x32.png"
+    if fav_path.is_file():
+        return FileResponse(fav_path, media_type="image/png")
+    return Response(status_code=204)
+
+
+@app.api_route("/apple-touch-icon.png", methods=["GET", "HEAD"], include_in_schema=False)
+@app.api_route("/apple-touch-icon-precomposed.png", methods=["GET", "HEAD"], include_in_schema=False)
+async def apple_touch_icon():
+    fav_path = static_path / "apple-touch-icon.png"
+    if fav_path.is_file():
+        return FileResponse(fav_path, media_type="image/png")
     return Response(status_code=204)
 
 

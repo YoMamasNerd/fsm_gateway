@@ -53,6 +53,10 @@ class Settings(BaseSettings):
     )
     LOG_LEVEL: str = Field(default="INFO", description="Log level")
     ENVIRONMENT: str = Field(default="production", description="Environment name")
+    TIMEZONE: str = Field(
+        default="Europe/Berlin",
+        description="Application timezone for formatting dates and metrics",
+    )
 
     # Metrics & Dashboard Settings
     DASHBOARD_PASSWORD: str = Field(

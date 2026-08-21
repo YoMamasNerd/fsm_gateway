@@ -10,6 +10,7 @@ import time
 from datetime import datetime, timezone, timedelta
 from pathlib import Path
 from typing import Any
+from zoneinfo import ZoneInfo
 
 from app.core.config import settings
 
@@ -26,6 +27,13 @@ class MetricsCollector:
         self._worker_task: asyncio.Task[None] | None = None
         self._is_running = False
         self.init_db()
+
+    def _get_tz(self) -> ZoneInfo:
+        """Returns the configured application timezone (default: Europe/Berlin)."""
+        try:
+            return ZoneInfo(settings.TIMEZONE)
+        except Exception:
+            return ZoneInfo("Europe/Berlin")
 
     def _connect(self, timeout: float = 5.0) -> sqlite3.Connection:
         """Returns SQLite connection ensuring parent directory and schema exist."""
@@ -239,9 +247,10 @@ class MetricsCollector:
             # 2. Time-series buckets
             # Pre-populate bucket slots
             bucket_data: list[dict[str, Any]] = []
+            tz = self._get_tz()
             for i in range(num_buckets):
                 bucket_start = start_ts + (i * bucket_size)
-                dt = datetime.fromtimestamp(bucket_start, timezone.utc).astimezone()
+                dt = datetime.fromtimestamp(bucket_start, tz=tz)
                 bucket_data.append({
                     "time": dt.strftime(time_format),
                     "timestamp": bucket_start,
@@ -340,8 +349,9 @@ class MetricsCollector:
             rows = cursor.fetchall()
 
         results = []
+        tz = self._get_tz()
         for r in rows:
-            dt = datetime.fromtimestamp(r["timestamp"], timezone.utc).astimezone()
+            dt = datetime.fromtimestamp(r["timestamp"], tz=tz)
             results.append({
                 "time": dt.strftime("%H:%M:%S"),
                 "date": dt.strftime("%d.%m.%Y"),

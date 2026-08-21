@@ -48,8 +48,8 @@ class Settings(BaseSettings):
         description="Default TTL in seconds for cached entities (e.g. instructors)",
     )
     CALENDAR_CACHE_TTL_SECONDS: int = Field(
-        default=1800,
-        description="Optimistic TTL in seconds for instructor calendar responses (default: 30 min)",
+        default=43200,
+        description="Optimistic TTL in seconds for instructor calendar responses (default: 12 hours / 43200s)",
     )
     CALENDAR_SWR_MAX_AGE_SECONDS: int = Field(
         default=7200,

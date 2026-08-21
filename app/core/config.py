@@ -47,6 +47,14 @@ class Settings(BaseSettings):
         default=300,
         description="Default TTL in seconds for cached entities (e.g. instructors)",
     )
+    CALENDAR_CACHE_TTL_SECONDS: int = Field(
+        default=1800,
+        description="Optimistic TTL in seconds for instructor calendar responses (default: 30 min)",
+    )
+    CALENDAR_SWR_MAX_AGE_SECONDS: int = Field(
+        default=7200,
+        description="Maximum stale window in seconds for Stale-While-Revalidate background refresh (default: 2 hours)",
+    )
     HTTP_TIMEOUT: float = Field(
         default=20.0,
         description="Timeout for external HTTP requests in seconds",

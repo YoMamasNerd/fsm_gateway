@@ -46,6 +46,32 @@ class AsyncTTLCache:
             self._storage.move_to_end(key)
             return item.value
 
+    async def get_or_stale(
+        self, key: str, stale_window: float = 0.0
+    ) -> tuple[Any | None, bool]:
+        """
+        Retrieve a cached value with Stale-While-Revalidate support.
+        Returns:
+            (value, is_stale):
+            - (value, False) if present and fresh (now <= expires_at)
+            - (value, True) if present, expired, but within stale_window (now <= expires_at + stale_window)
+            - (None, False) if missing or expired beyond stale_window
+        """
+        now = time.time()
+        async with self._lock:
+            item = self._storage.get(key)
+            if item is None:
+                return None, False
+            if now <= item.expires_at:
+                self._storage.move_to_end(key)
+                return item.value, False
+            if now <= item.expires_at + stale_window:
+                self._storage.move_to_end(key)
+                return item.value, True
+            # Expired beyond stale window
+            del self._storage[key]
+            return None, False
+
     async def set(self, key: str, value: Any, ttl: int | None = None) -> None:
         """Store a value in cache with a TTL (seconds) and enforce max_size."""
         duration = ttl if ttl is not None else self.default_ttl

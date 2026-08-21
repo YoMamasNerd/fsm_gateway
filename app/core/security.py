@@ -12,6 +12,9 @@ http_bearer = HTTPBearer(auto_error=False)
 EXEMPT_PATHS = {
     "/",
     "/favicon.ico",
+    "/favicon.svg",
+    "/favicon.png",
+    "/apple-touch-icon.png",
     "/metrics",
     "/docs",
     "/redoc",
@@ -27,10 +30,10 @@ async def verify_gateway_api_key(
     """Verify internal gateway API Key if configured in settings.
 
     If GATEWAY_API_KEY is empty, authentication is bypassed (trusted internal network).
-    Exempts public/dashboard routes from API-Key requirement.
+    Exempts public, static and dashboard routes from API-Key requirement.
     """
     path = request.url.path
-    if path in EXEMPT_PATHS or path.startswith("/dashboard"):
+    if path in EXEMPT_PATHS or path.startswith("/dashboard") or path.startswith("/static"):
         return True
 
     configured_key = settings.GATEWAY_API_KEY.strip()

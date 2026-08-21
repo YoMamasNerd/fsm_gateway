@@ -45,15 +45,31 @@ class Settings(BaseSettings):
     )
     CACHE_TTL_SECONDS: int = Field(
         default=300,
-        description="Default TTL in seconds for cached entities (e.g. instructors)",
+        description="Default TTL in seconds for general cached entities",
     )
     CALENDAR_CACHE_TTL_SECONDS: int = Field(
         default=43200,
         description="Optimistic TTL in seconds for instructor calendar responses (default: 12 hours / 43200s)",
     )
     CALENDAR_SWR_MAX_AGE_SECONDS: int = Field(
-        default=7200,
-        description="Maximum stale window in seconds for Stale-While-Revalidate background refresh (default: 2 hours)",
+        default=86400,
+        description="Maximum stale window in seconds for Stale-While-Revalidate background refresh (default: 24 hours)",
+    )
+    FAHRLEHRER_CACHE_TTL_SECONDS: int = Field(
+        default=43200,
+        description="TTL in seconds for instructor list cache (default: 12 hours / 43200s)",
+    )
+    SCHUELER_CACHE_TTL_SECONDS: int = Field(
+        default=21600,
+        description="TTL in seconds for student details/profile cache (default: 6 hours / 21600s)",
+    )
+    FAHRSTUNDEN_CACHE_TTL_SECONDS: int = Field(
+        default=300,
+        description="TTL in seconds for student driving lessons history cache (default: 5 minutes / 300s)",
+    )
+    LEISTUNGEN_CACHE_TTL_SECONDS: int = Field(
+        default=60,
+        description="TTL in seconds for student services/balance cache (default: 1 minute / 60s)",
     )
     HTTP_TIMEOUT: float = Field(
         default=20.0,

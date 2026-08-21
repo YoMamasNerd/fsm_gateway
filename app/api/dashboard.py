@@ -289,6 +289,23 @@ async def get_dashboard_live(
     }
 
 
+@router.post("/dashboard/api/cache/clear", summary="Clear All Gateway Cache Entries")
+async def dashboard_clear_cache(
+    fsm_dash_auth: str | None = Cookie(None),
+    authorization: str | None = Header(None),
+) -> dict[str, Any]:
+    """Clears all in-memory caches (calendar, instructors, students, lessons)."""
+    if not _is_authenticated(fsm_dash_auth, authorization):
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Nicht authentifiziert")
+
+    count_before = await cache.size()
+    await cache.clear()
+    return {
+        "success": True,
+        "message": f"Gateway-Cache erfolgreich geleert ({count_before} Einträge gelöscht).",
+        "cleared_count": count_before,
+    }
+
 
 @router.get("/dashboard", response_class=HTMLResponse, summary="Gateway Monitoring Dashboard")
 async def dashboard_view(
@@ -513,6 +530,11 @@ def _render_dashboard_html() -> str:
                     <button type="button" class="btn btn-sm btn-dark rounded-pill px-3 fw-medium range-btn" onclick="setRange('7d')">7 Tage</button>
                     <button type="button" class="btn btn-sm btn-dark rounded-pill px-3 fw-medium range-btn" onclick="setRange('30d')">30 Tage</button>
                 </div>
+
+                <!-- Cache Clear Button -->
+                <button type="button" id="btnClearCache" class="btn btn-sm btn-outline-warning rounded-pill px-3 fw-medium" onclick="clearGatewayCache()" title="Gesamten In-Memory Cache des Gateways sofort leeren">
+                    <i class="bi bi-trash3 me-1"></i> Cache leeren
+                </button>
 
                 <a href="/docs" target="_blank" class="btn btn-sm btn-outline-secondary rounded-pill px-3 text-decoration-none">
                     <i class="bi bi-code-slash me-1"></i> API Docs
@@ -942,6 +964,42 @@ def _render_dashboard_html() -> str:
                 }).join('');
             } catch (err) {
                 console.error('Error fetching live feed:', err);
+            }
+        }
+
+        async function clearGatewayCache() {
+            const btn = document.getElementById('btnClearCache');
+            if (!confirm('Möchtest du den gesamten Gateway-Cache leeren? Alle nächsten Abfragen (Kalender, Schüler, Fahrlehrer) werden dann live von FSM geladen.')) {
+                return;
+            }
+            const originalHtml = btn.innerHTML;
+            btn.disabled = true;
+            btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1" role="status"></span> Leere...';
+            try {
+                const resp = await fetch('/dashboard/api/cache/clear', { method: 'POST' });
+                const data = await resp.json();
+                if (resp.ok && data.success) {
+                    btn.innerHTML = '<i class="bi bi-check-circle-fill me-1"></i> Geleert!';
+                    btn.classList.remove('btn-outline-warning');
+                    btn.classList.add('btn-success');
+                    setTimeout(() => {
+                        btn.innerHTML = originalHtml;
+                        btn.classList.remove('btn-success');
+                        btn.classList.add('btn-outline-warning');
+                        btn.disabled = false;
+                    }, 2500);
+                    // Refresh stats and live view immediately
+                    await loadStats();
+                    await loadLiveFeed();
+                } else {
+                    alert('Fehler beim Leeren des Caches: ' + (data.detail || data.message || 'Unbekannter Fehler'));
+                    btn.innerHTML = originalHtml;
+                    btn.disabled = false;
+                }
+            } catch (err) {
+                alert('Netzwerkfehler: ' + err);
+                btn.innerHTML = originalHtml;
+                btn.disabled = false;
             }
         }
 

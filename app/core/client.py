@@ -500,7 +500,7 @@ class FSMClient:
                 row["name"] = voller_name
                 instructors.append(row)
 
-        await cache.set(cache_key, instructors, ttl=settings.CACHE_TTL_SECONDS)
+        await cache.set(cache_key, instructors, ttl=settings.FAHRLEHRER_CACHE_TTL_SECONDS)
         return instructors
 
     async def get_kalender(

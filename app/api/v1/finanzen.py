@@ -8,6 +8,7 @@ import re
 from typing import Any
 from fastapi import APIRouter, HTTPException, Path, Query, status
 
+from app.core.config import settings
 from app.core.client import FsmApiError, fsm_client
 from app.schemas.finanzen import (
     FahrstundeItem,
@@ -137,7 +138,7 @@ async def get_fahrstunden(
             total_minutes=total_mins,
             fahrstunden=lessons,
         )
-        await cache.set(cache_key, result, ttl=60)
+        await cache.set(cache_key, result, ttl=settings.FAHRSTUNDEN_CACHE_TTL_SECONDS)
         response.headers["X-Cache-Hit"] = "0"
         return result
 
@@ -228,7 +229,7 @@ async def get_leistungen(
             total_zahlungen=round(total_zahlungen, 2),
             leistungen=items,
         )
-        await cache.set(cache_key, result, ttl=60)
+        await cache.set(cache_key, result, ttl=settings.LEISTUNGEN_CACHE_TTL_SECONDS)
         response.headers["X-Cache-Hit"] = "0"
         return result
 

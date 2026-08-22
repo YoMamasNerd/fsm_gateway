@@ -37,6 +37,10 @@ class _FakeRedis:
     async def aclose(self) -> None:
         pass
 
+    async def scan_iter(self, match: str = "*", count: int = 100):
+        for k in list(self.store.keys()):
+            yield k
+
 
 def _build_kalender_response() -> KalenderResponse:
     ev = KalenderEvent(
@@ -127,3 +131,24 @@ async def test_valkey_roundtrip_with_nested_datetime_and_decimal():
     assert cached["saldo"] == "150.50"
     assert cached["geboren"] == "1995-03-02"
     assert cached["stempel"] == "2026-01-01T12:30:00"
+
+
+@pytest.mark.asyncio
+async def test_valkey_info_and_key_counts():
+    """info() und key_counts() muessen Metriken liefern, ohne zu crashen."""
+    fake = _FakeRedis()
+    vc = ValkeyCache(url="redis://fake")
+    vc._redis = fake  # type: ignore[attr-defined]
+    vc.is_connected = True
+
+    # Fake-Redis hat kein info(); die Methode muss das abfangen und {} liefern
+    info = await vc.info()
+    assert isinstance(info, dict)
+
+    # key_counts zaehlt nach Praefix
+    await vc.set("kalender:fl-1:2026-08-20:2026-08-21:False:True", {"a": 1}, ttl=60)
+    await vc.set("kalender:fl-2:2026-08-20:2026-08-21:False:True", {"a": 2}, ttl=60)
+    await vc.set("schueler:details:stu-1", {"b": 3}, ttl=60)
+    counts = await vc.key_counts()
+    assert counts["kalender"] == 2
+    assert counts["schueler"] == 1

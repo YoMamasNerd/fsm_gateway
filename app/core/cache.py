@@ -303,6 +303,57 @@ class ValkeyCache:
         except Exception:
             return 0
 
+    async def info(self) -> dict[str, Any]:
+        """Liefert relevante Valkey-Server-Metriken für das Dashboard."""
+        if not self.is_connected or not self._redis:
+            return {}
+        try:
+            raw = await self._redis.info()
+        except Exception as exc:
+            logger.warning("Valkey info Fehler: %s", exc)
+            return {}
+
+        def _num(key: str) -> int:
+            try:
+                return int(raw.get(key, 0))
+            except (TypeError, ValueError):
+                return 0
+
+        hits = _num("keyspace_hits")
+        misses = _num("keyspace_misses")
+        total = hits + misses
+        used = _num("used_memory")
+        maxmem = _num("maxmemory")
+        return {
+            "version": raw.get("redis_version", ""),
+            "uptime_seconds": _num("uptime_in_seconds"),
+            "connected_clients": _num("connected_clients"),
+            "used_memory": used,
+            "used_memory_human": raw.get("used_memory_human", ""),
+            "maxmemory": maxmem,
+            "maxmemory_human": raw.get("maxmemory_human", ""),
+            "memory_usage_pct": round(used / maxmem * 100, 1) if maxmem > 0 else 0.0,
+            "keyspace_hits": hits,
+            "keyspace_misses": misses,
+            "hit_ratio_pct": round(hits / total * 100, 1) if total > 0 else 0.0,
+            "evicted_keys": _num("evicted_keys"),
+            "expired_keys": _num("expired_keys"),
+            "total_commands_processed": _num("total_commands_processed"),
+        }
+
+    async def key_counts(self) -> dict[str, int]:
+        """Zählt gecachte Keys gruppiert nach Präfix (kalender, schueler, ...)."""
+        if not self.is_connected or not self._redis:
+            return {}
+        counts: dict[str, int] = {}
+        try:
+            async for k in self._redis.scan_iter(match="*", count=200):
+                prefix = k.split(":", 1)[0] if ":" in k else "_other"
+                counts[prefix] = counts.get(prefix, 0) + 1
+        except Exception as exc:
+            logger.warning("Valkey key_counts Fehler: %s", exc)
+        return counts
+
 
 class UnifiedCache:
     """Unified Gateway Cache with Valkey primary and In-Memory fallback."""
@@ -377,6 +428,18 @@ class UnifiedCache:
             "connected": self.is_valkey_active,
             "url": settings.VALKEY_URL if self.is_valkey_active else None,
         }
+
+    async def valkey_info(self) -> dict[str, Any]:
+        """Valkey-Server-Metriken (leer bei Memory-Fallback)."""
+        if self.is_valkey_active:
+            return await self.valkey.info()
+        return {}
+
+    async def valkey_key_counts(self) -> dict[str, int]:
+        """Gecachte Keys nach Präfix (leer bei Memory-Fallback)."""
+        if self.is_valkey_active:
+            return await self.valkey.key_counts()
+        return {}
 
 
 # Global cache instance for gateway

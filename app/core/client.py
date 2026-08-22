@@ -816,6 +816,26 @@ class FSMClient:
         if belegnummer and belegnummer not in note_text:
             note_text = f"{note_text} ({belegnummer})"
 
+        # 3. Anmeldedatum des Schülers prüfen (FSM erlaubt keine Buchungen vor dem Anmeldedatum)
+        try:
+            schueler = await self.get_schueler_details(student_uuid)
+            if isinstance(schueler, dict) and schueler.get("anmeldedatum"):
+                anmelde_str = str(schueler["anmeldedatum"])[:10]
+                target_date_str = str(datum_iso)[:10]
+                if target_date_str < anmelde_str:
+                    logger.info(
+                        "Zahlungsdatum %s liegt vor Anmeldedatum %s für Schüler %s -> passe Buchungsdatum auf %s an",
+                        target_date_str,
+                        anmelde_str,
+                        student_uuid,
+                        anmelde_str,
+                    )
+                    datum_iso = f"{anmelde_str}T12:00:00+02:00"
+                    if f"Zahlung vom {target_date_str}" not in note_text:
+                        note_text = f"{note_text} (Zahlung vom {target_date_str})"
+        except Exception as exc:
+            logger.warning("Konnte Anmeldedatum für %s nicht abgleichen: %s", student_uuid, exc)
+
         payload = {
             "viewModel": {
                 "fidKunde": student_uuid,
@@ -830,7 +850,16 @@ class FSMClient:
                 "beleg": belegnummer or "",
             }
         }
-        res = await self.request("POST", "v1/zahlungen", json_data=payload)
+        try:
+            res = await self.request("POST", "v1/zahlungen", json_data=payload)
+        except FsmApiError as exc:
+            # Fallback bei Datumsvalidierungsfehlern seitens FSM
+            if "Anmeldedatum" in str(exc):
+                logger.warning("FSM verweigerte Datum wegen Anmeldedatum, versuche Buchung mit aktuellem Datum: %s", exc)
+                payload["viewModel"]["datum"] = _normalize_iso_datetime(dt.date.today())
+                res = await self.request("POST", "v1/zahlungen", json_data=payload)
+            else:
+                raise
         return res if isinstance(res, dict) else {"success": True, "result": res}
 
 

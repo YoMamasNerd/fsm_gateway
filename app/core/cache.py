@@ -3,9 +3,13 @@
 from __future__ import annotations
 
 import asyncio
+import datetime as dt
+import decimal
+import enum
 import json
 import logging
 import time
+import uuid
 from collections import OrderedDict
 from typing import Any, Generic, TypeVar
 
@@ -21,6 +25,30 @@ from app.core.config import settings
 logger = logging.getLogger("fsm_gateway.cache")
 
 T = TypeVar("T")
+
+
+def _json_default(obj: Any) -> Any:
+    """JSON-Fallback für Werte, die nicht nativ serialisierbar sind.
+
+    Behandelt Pydantic v2 Models (inkl. verschachtelter Models), Datums-/
+    Zeittypen, Decimal, Enum, UUID, bytes und Sets. Wirft TypeError für alles
+    andere, damit Serialisierungsfehler nie mehr still verschluckt werden.
+    """
+    if hasattr(obj, "model_dump"):  # Pydantic v2 BaseModel
+        return obj.model_dump(mode="json")
+    if isinstance(obj, (dt.datetime, dt.date, dt.time)):
+        return obj.isoformat()
+    if isinstance(obj, (set, frozenset)):
+        return list(obj)
+    if isinstance(obj, (bytes, bytearray)):
+        return obj.decode("utf-8", errors="replace")
+    if isinstance(obj, decimal.Decimal):
+        return str(obj)
+    if isinstance(obj, enum.Enum):
+        return obj.value
+    if isinstance(obj, uuid.UUID):
+        return str(obj)
+    raise TypeError(f"Object of type {type(obj).__name__} is not JSON serializable")
 
 
 class CacheItem(Generic[T]):
@@ -217,12 +245,14 @@ class ValkeyCache:
         try:
             duration = ttl if ttl is not None else self.default_ttl
             expires_at = time.time() + duration
-            payload = json.dumps({"v": value, "exp": expires_at}, ensure_ascii=False)
+            payload = json.dumps(
+                {"v": value, "exp": expires_at}, ensure_ascii=False, default=_json_default
+            )
             # Keep alive in Valkey with extra margin for stale reads (24h)
             valkey_ttl = int(duration + 86400)
             await self._redis.set(key, payload, ex=valkey_ttl)
         except Exception as exc:
-            logger.warning("Valkey set Fehler für %s: %s", key, exc)
+            logger.exception("Valkey set Fehler für %s", key, exc_info=exc)
 
     async def delete(self, key: str) -> bool:
         if not self.is_connected or not self._redis:

@@ -243,10 +243,14 @@ async def test_finanzen_and_zahlung_endpoints(async_client: httpx.AsyncClient):
     assert lst_data["total_kosten"] == 350.0
     assert lst_data["total_zahlungen"] == 350.0
 
-    # Mock Zahlung POST
-    respx.post("https://api.fahrschulmanager.de/v2/leistungen/zahlung").respond(
+    # Mock Zahlung Vorlage & POST
+    respx.get(f"https://api.fahrschulmanager.de/v1/zahlungen/vorlage?fidkunde={student_id}").respond(
         status_code=200,
-        json={"success": True},
+        json={"fidKunde": student_id, "kunde": "Test Student", "fidKassenbuch": "kb-1", "kassenbuch": "Kasse"},
+    )
+    respx.post("https://api.fahrschulmanager.de/v1/zahlungen").respond(
+        status_code=201,
+        json={"viewModel": {"id": "pay-1"}},
     )
 
     resp_pay = await async_client.post(
@@ -284,10 +288,14 @@ async def test_sumup_webhook(async_client: httpx.AsyncClient):
         },
     )
 
-    # Mock Zahlung POST
-    respx.post("https://api.fahrschulmanager.de/v2/leistungen/zahlung").respond(
+    # Mock Zahlung Vorlage & POST
+    respx.get(f"https://api.fahrschulmanager.de/v1/zahlungen/vorlage?fidkunde={student_id}").respond(
         status_code=200,
-        json={"success": True},
+        json={"fidKunde": student_id, "kunde": "Erika Musterfrau", "fidKassenbuch": "kb-1", "kassenbuch": "Kasse"},
+    )
+    respx.post("https://api.fahrschulmanager.de/v1/zahlungen").respond(
+        status_code=201,
+        json={"viewModel": {"id": "pay-1"}},
     )
 
     webhook_payload = {

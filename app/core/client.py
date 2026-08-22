@@ -766,29 +766,54 @@ class FSMClient:
         student_uuid: str,
         betrag: float,
         datum: dt.date | dt.datetime | str,
-        zahlungsart: str = "Kartenzahlung",
+        zahlungsart: str = "Karte",
         text: str = "SumUp Kartenzahlung",
         belegnummer: str | None = None,
     ) -> dict[str, Any]:
-        """Records a payment for a student in FSM and invalidates financial caches."""
+        """Records a payment (Gutschrift / Zahlung) for a student in FSM Cloud via v1/zahlungen."""
         await cache.delete_prefix(f"fsm:schueler:{student_uuid}")
         await cache.delete_prefix(f"fsm:leistungen:{student_uuid}")
         await cache.delete_prefix(f"fsm:fahrstunden:{student_uuid}")
 
         datum_iso = _normalize_iso_datetime(datum)
 
+        # 1. Vorlage für Schüler abrufen
+        fid_kassenbuch = "f39193c4-09eb-4cf6-8e8e-11b32b8a678b"
+        kassenbuch_name = "Kasse"
+        kunde_name = ""
+        fid_steuer = 5
+        steuersatz = 0.19
+
+        try:
+            vorlage = await self.request("GET", f"v1/zahlungen/vorlage?fidkunde={student_uuid}")
+            if isinstance(vorlage, dict):
+                fid_kassenbuch = vorlage.get("fidKassenbuch") or fid_kassenbuch
+                kassenbuch_name = vorlage.get("kassenbuch") or kassenbuch_name
+                kunde_name = vorlage.get("kunde") or kunde_name
+                fid_steuer = vorlage.get("fidsteuer", fid_steuer)
+                steuersatz = vorlage.get("steuersatz", steuersatz)
+        except Exception as exc:
+            logger.warning("Konnte Zahlungs-Vorlage für %s nicht abrufen, nutze Standardwerte: %s", student_uuid, exc)
+
+        note_text = text or "SumUp Kartenzahlung"
+        if belegnummer and belegnummer not in note_text:
+            note_text = f"{note_text} ({belegnummer})"
+
         payload = {
             "viewModel": {
-                "fidSchueler": student_uuid,
-                "zahlung": float(betrag),
+                "fidKunde": student_uuid,
+                "kunde": kunde_name,
+                "fidKassenbuch": fid_kassenbuch,
+                "kassenbuch": kassenbuch_name,
+                "fidsteuer": fid_steuer,
+                "steuersatz": steuersatz,
                 "datum": datum_iso,
-                "leistungsart": "ZG",
-                "zahlungsart": zahlungsart,
-                "text": text,
-                "belegnummer": belegnummer,
+                "betrag": float(betrag),
+                "bemerkung": note_text,
+                "beleg": belegnummer or "",
             }
         }
-        res = await self.request("POST", "v2/leistungen/zahlung", json_data=payload)
+        res = await self.request("POST", "v1/zahlungen", json_data=payload)
         return res if isinstance(res, dict) else {"success": True, "result": res}
 
 

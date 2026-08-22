@@ -621,8 +621,14 @@ def _render_dashboard_html() -> str:
                     <div class="small text-secondary mt-2">
                         Memory: <strong class="text-light" id="kpiValkeyMemory">-</strong>
                     </div>
+                    <div class="progress mt-1" style="height: 6px; background: #1f2937;">
+                        <div class="progress-bar" id="kpiValkeyMemoryBar" role="progressbar" style="width: 0%; background: #3b82f6;" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100"></div>
+                    </div>
                     <div class="small text-secondary mt-1">
                         Keys: <strong class="text-light" id="kpiValkeyKeys">-</strong>
+                    </div>
+                    <div class="small mt-1 d-none" id="kpiValkeyEviction">
+                        <span class="badge bg-danger bg-opacity-25 text-danger border border-danger border-opacity-25"><i class="bi bi-exclamation-triangle-fill me-1"></i><span id="kpiValkeyEvictionCount">0</span> Evictions</span>
                     </div>
                 </div>
             </div>
@@ -1025,12 +1031,31 @@ def _render_dashboard_html() -> str:
                 const hitEl = document.getElementById('kpiValkeyHitRatio');
                 const memEl = document.getElementById('kpiValkeyMemory');
                 const keysEl = document.getElementById('kpiValkeyKeys');
+                const memBarEl = document.getElementById('kpiValkeyMemoryBar');
+                const evictionEl = document.getElementById('kpiValkeyEviction');
+                const evictionCountEl = document.getElementById('kpiValkeyEvictionCount');
 
                 if (backend.connected) {
                     backendEl.textContent = 'Valkey';
                     backendEl.className = 'fw-bold mb-0 text-info';
                     hitEl.textContent = `${vk.hit_ratio_pct ?? 0}% Hit-Ratio`;
                     memEl.textContent = `${vk.used_memory_human || '-'} / ${vk.maxmemory_human || '-'} (${vk.memory_usage_pct ?? 0}%)`;
+
+                    // Memory-Balken: Farbe nach Auslastung (blau <70%, gelb <90%, rot >=90%)
+                    const memPct = vk.memory_usage_pct ?? 0;
+                    memBarEl.style.width = `${Math.min(100, memPct)}%`;
+                    memBarEl.style.background = memPct >= 90 ? '#ef4444' : (memPct >= 70 ? '#f59e0b' : '#3b82f6');
+                    memBarEl.setAttribute('aria-valuenow', String(memPct));
+
+                    // Eviction-Warnung nur bei evicted_keys > 0
+                    const evicted = vk.evicted_keys ?? 0;
+                    if (evicted > 0) {
+                        evictionCountEl.textContent = evicted;
+                        evictionEl.classList.remove('d-none');
+                    } else {
+                        evictionEl.classList.add('d-none');
+                    }
+
                     const kc = data.key_counts || {};
                     const keyParts = Object.entries(kc).map(([k, v]) => `${k}:${v}`).join(' · ');
                     keysEl.textContent = `${data.total_keys ?? 0} gesamt${keyParts ? ' — ' + keyParts : ''}`;
@@ -1039,6 +1064,8 @@ def _render_dashboard_html() -> str:
                     backendEl.className = 'fw-bold mb-0 text-warning';
                     hitEl.textContent = 'Fallback aktiv';
                     memEl.textContent = '—';
+                    memBarEl.style.width = '0%';
+                    evictionEl.classList.add('d-none');
                     keysEl.textContent = `${data.total_keys ?? 0} gesamt`;
                 }
             } catch (err) {

@@ -824,15 +824,17 @@ class FSMClient:
                 target_date_str = str(datum_iso)[:10]
                 if target_date_str < anmelde_str:
                     logger.info(
-                        "Zahlungsdatum %s liegt vor Anmeldedatum %s für Schüler %s -> passe Buchungsdatum auf %s an",
+                        "Zahlungsdatum %s liegt vor Anmeldedatum %s für Schüler %s -> setze Anmeldedatum auf Zahlungsdatum",
                         target_date_str,
                         anmelde_str,
                         student_uuid,
-                        anmelde_str,
                     )
-                    datum_iso = f"{anmelde_str}T12:00:00+02:00"
-                    if f"Zahlung vom {target_date_str}" not in note_text:
-                        note_text = f"{note_text} (Zahlung vom {target_date_str})"
+                    updated = await self.update_schueler_anmeldedatum(student_uuid, target_date_str)
+                    if not updated:
+                        logger.warning("Konnte Anmeldedatum nicht vorverlegen, passe Buchungsdatum an.")
+                        datum_iso = f"{anmelde_str}T12:00:00+02:00"
+                        if f"Zahlung vom {target_date_str}" not in note_text:
+                            note_text = f"{note_text} (Zahlung vom {target_date_str})"
         except Exception as exc:
             logger.warning("Konnte Anmeldedatum für %s nicht abgleichen: %s", student_uuid, exc)
 
@@ -855,12 +857,40 @@ class FSMClient:
         except FsmApiError as exc:
             # Fallback bei Datumsvalidierungsfehlern seitens FSM
             if "Anmeldedatum" in str(exc):
-                logger.warning("FSM verweigerte Datum wegen Anmeldedatum, versuche Buchung mit aktuellem Datum: %s", exc)
-                payload["viewModel"]["datum"] = _normalize_iso_datetime(dt.date.today())
+                logger.warning("FSM verweigerte Datum wegen Anmeldedatum, versuche Anmeldedatum anzupassen: %s", exc)
+                target_date_str = str(datum_iso)[:10]
+                await self.update_schueler_anmeldedatum(student_uuid, target_date_str)
                 res = await self.request("POST", "v1/zahlungen", json_data=payload)
             else:
                 raise
         return res if isinstance(res, dict) else {"success": True, "result": res}
+
+    async def update_schueler_anmeldedatum(
+        self,
+        student_uuid: str,
+        new_anmeldedatum: dt.date | dt.datetime | str,
+    ) -> bool:
+        """Updates a student's registration date (Anmeldedatum) in FSM Cloud via PUT v1/schueler."""
+        try:
+            kartei = await self.request("GET", f"v1/schueler/kartei/{student_uuid}")
+            if not isinstance(kartei, dict):
+                return False
+
+            preise = await self.request("GET", f"v1/preislisten/schueler/{student_uuid}")
+            if isinstance(preise, list):
+                kartei["kundenpreise"] = preise
+
+            date_iso = _normalize_iso_datetime(new_anmeldedatum)
+            kartei["anmeldedatum"] = date_iso
+
+            await self.request("PUT", "v1/schueler", json_data={"viewModel": kartei})
+            await cache.delete_prefix(f"fsm:schueler:{student_uuid}")
+            await cache.delete_prefix(f"schueler:details:{student_uuid}")
+            logger.info("Anmeldedatum für Schüler %s erfolgreich auf %s aktualisiert.", student_uuid, date_iso)
+            return True
+        except Exception as exc:
+            logger.error("Fehler beim Aktualisieren des Anmeldedatums für %s: %s", student_uuid, exc)
+            return False
 
 
 # Global FSM client singleton

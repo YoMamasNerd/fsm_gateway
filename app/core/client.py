@@ -778,8 +778,6 @@ class FSMClient:
         datum_iso = _normalize_iso_datetime(datum)
 
         # 1. Vorlage für Schüler abrufen
-        fid_kassenbuch = "f39193c4-09eb-4cf6-8e8e-11b32b8a678b"
-        kassenbuch_name = "Kasse"
         kunde_name = ""
         fid_steuer = 5
         steuersatz = 0.19
@@ -787,13 +785,32 @@ class FSMClient:
         try:
             vorlage = await self.request("GET", f"v1/zahlungen/vorlage?fidkunde={student_uuid}")
             if isinstance(vorlage, dict):
-                fid_kassenbuch = vorlage.get("fidKassenbuch") or fid_kassenbuch
-                kassenbuch_name = vorlage.get("kassenbuch") or kassenbuch_name
                 kunde_name = vorlage.get("kunde") or kunde_name
                 fid_steuer = vorlage.get("fidsteuer", fid_steuer)
                 steuersatz = vorlage.get("steuersatz", steuersatz)
         except Exception as exc:
-            logger.warning("Konnte Zahlungs-Vorlage für %s nicht abrufen, nutze Standardwerte: %s", student_uuid, exc)
+            logger.warning("Konnte Zahlungs-Vorlage für %s nicht abrufen: %s", student_uuid, exc)
+
+        # 2. Passendes Kassenbuch ermitteln (Kartenzahlung für Karte / SumUp)
+        fid_kassenbuch = "b6f0fff6-21f7-4a5f-8109-ae258b9e9912"
+        kassenbuch_name = "Kartenzahlung"
+
+        try:
+            buecher = await self.request("GET", "v1/kassenbuecher")
+            if isinstance(buecher, list):
+                art_lower = (zahlungsart or "Karte").lower()
+                for kb in buecher:
+                    kb_bez = str(kb.get("bezeichnung") or "").lower()
+                    if any(k in art_lower for k in ["karte", "sumup", "card"]) and "karte" in kb_bez:
+                        fid_kassenbuch = str(kb.get("id"))
+                        kassenbuch_name = str(kb.get("bezeichnung"))
+                        break
+                    elif any(k in art_lower for k in ["bank", "überweisung"]) and "bank" in kb_bez:
+                        fid_kassenbuch = str(kb.get("id"))
+                        kassenbuch_name = str(kb.get("bezeichnung"))
+                        break
+        except Exception as exc:
+            logger.warning("Konnte Kassenbücher nicht abrufen, nutze Kartenzahlung-Standard: %s", exc)
 
         note_text = text or "SumUp Kartenzahlung"
         if belegnummer and belegnummer not in note_text:

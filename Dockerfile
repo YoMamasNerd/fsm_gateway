@@ -28,7 +28,7 @@ EXPOSE 8090
 
 # Healthcheck
 HEALTHCHECK --interval=30s --timeout=5s --start-period=5s --retries=3 \
-    CMD curl -f http://localhost:8090/health || exit 1
+    CMD curl -f -H "X-Forwarded-For: 127.0.0.1" http://localhost:8090/health || exit 1
 
 # Run FastAPI via Uvicorn
 CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8090"]

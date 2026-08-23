@@ -59,8 +59,9 @@ async def test_metrics_collector_record_and_aggregate(temp_metrics):
 
 @pytest.mark.asyncio
 async def test_dashboard_endpoints():
-    transport = ASGITransport(app=app)
-    async with AsyncClient(transport=transport, base_url="http://test") as client:
+    transport = ASGITransport(app=app, client=("172.18.0.5", 1234))
+    async with AsyncClient(transport=transport, base_url="http://test",
+                           headers={"X-API-Key": "test-gateway-key"}) as client:
         # 1. Prometheus /metrics endpoint
         res = await client.get("/metrics")
         assert res.status_code == 200
@@ -92,8 +93,9 @@ async def test_dashboard_auth_protection(monkeypatch):
     # Set dashboard password
     monkeypatch.setattr(settings, "DASHBOARD_PASSWORD", "secret123")
 
-    transport = ASGITransport(app=app)
-    async with AsyncClient(transport=transport, base_url="http://test") as client:
+    transport = ASGITransport(app=app, client=("172.18.0.5", 1234))
+    async with AsyncClient(transport=transport, base_url="http://test",
+                           headers={"X-API-Key": "test-gateway-key"}) as client:
         # Without auth: /dashboard shows login page
         res = await client.get("/dashboard")
         assert res.status_code == 200
@@ -129,8 +131,9 @@ async def test_dashboard_sso_flow(monkeypatch):
     monkeypatch.setattr(settings, "VOIDAUTH_CLIENT_SECRET", "test-client-secret")
     monkeypatch.setattr(settings, "VOIDAUTH_ISSUER_URL", "https://auth.example.com/oidc")
 
-    transport = ASGITransport(app=app)
-    async with AsyncClient(transport=transport, base_url="http://test") as client:
+    transport = ASGITransport(app=app, client=("172.18.0.5", 1234))
+    async with AsyncClient(transport=transport, base_url="http://test",
+                           headers={"X-API-Key": "test-gateway-key"}) as client:
         # 1. Login page shows SSO button
         res_dash = await client.get("/dashboard")
         assert res_dash.status_code == 200

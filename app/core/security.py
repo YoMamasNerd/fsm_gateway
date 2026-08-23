@@ -68,25 +68,17 @@ async def verify_gateway_api_key(
     if path in EXEMPT_PATHS or path.startswith("/dashboard") or path.startswith("/static"):
         return True
 
-    if path in PRIVATE_ONLY_PATHS or any(
-        path.startswith(p + "/") for p in PRIVATE_ONLY_PATHS
-    ):
-        await _require_private_network(request)
-        return True
+    # Public clients get nothing at all: docs, metrics and every API route
+    # are internal-only. Only the dashboard (password-protected separately)
+    # and static assets are reachable from outside.
+    await _require_private_network(request)
 
     configured_key = settings.GATEWAY_API_KEY.strip()
     provided_key = header_key or (bearer_auth.credentials if bearer_auth else None)
 
     if not configured_key:
-        # No key configured: fail closed for API routes instead of silently
-        # exposing them to the public internet.
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail=(
-                "GATEWAY_API_KEY ist nicht konfiguriert - "
-                "API-Zugriff ist deaktiviert."
-            ),
-        )
+        # No key configured: internal callers are trusted.
+        return True
 
     if not provided_key or not secrets.compare_digest(provided_key, configured_key):
         raise HTTPException(

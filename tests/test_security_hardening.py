@@ -38,10 +38,10 @@ async def test_metrics_blocked_from_public_ip():
 
 
 @pytest.mark.asyncio
-async def test_v1_requires_api_key_from_public_ip():
+async def test_v1_blocked_from_public_ip():
     async with _public_client() as client:
         resp = await client.get("/v1/fahrlehrer")
-    assert resp.status_code == 401
+    assert resp.status_code == 403
 
 
 @pytest.mark.asyncio
@@ -51,10 +51,14 @@ async def test_docs_allowed_from_private_ip(async_client):
 
 
 @pytest.mark.asyncio
-async def test_empty_api_key_fails_closed(monkeypatch):
+async def test_internal_trusted_without_key(monkeypatch):
     from app.core.config import settings
 
     monkeypatch.setattr(settings, "GATEWAY_API_KEY", "")
-    async with _public_client() as client:
-        resp = await client.get("/v1/fahrlehrer")
-    assert resp.status_code == 503
+    client = httpx.AsyncClient(
+        transport=httpx.ASGITransport(app=app, client=("172.18.0.5", 1234)),
+        base_url="http://testserver",
+    )
+    async with client:
+        resp = await client.get("/health")
+    assert resp.status_code == 200  # not 401/403

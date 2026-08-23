@@ -3,9 +3,13 @@
 from __future__ import annotations
 
 import asyncio
+import datetime as dt
+import decimal
+import enum
 import json
 import logging
 import time
+import uuid
 from collections import OrderedDict
 from typing import Any, Generic, TypeVar
 
@@ -21,6 +25,30 @@ from app.core.config import settings
 logger = logging.getLogger("fsm_gateway.cache")
 
 T = TypeVar("T")
+
+
+def _json_default(obj: Any) -> Any:
+    """JSON-Fallback für Werte, die nicht nativ serialisierbar sind.
+
+    Behandelt Pydantic v2 Models (inkl. verschachtelter Models), Datums-/
+    Zeittypen, Decimal, Enum, UUID, bytes und Sets. Wirft TypeError für alles
+    andere, damit Serialisierungsfehler nie mehr still verschluckt werden.
+    """
+    if hasattr(obj, "model_dump"):  # Pydantic v2 BaseModel
+        return obj.model_dump(mode="json")
+    if isinstance(obj, (dt.datetime, dt.date, dt.time)):
+        return obj.isoformat()
+    if isinstance(obj, (set, frozenset)):
+        return list(obj)
+    if isinstance(obj, (bytes, bytearray)):
+        return obj.decode("utf-8", errors="replace")
+    if isinstance(obj, decimal.Decimal):
+        return str(obj)
+    if isinstance(obj, enum.Enum):
+        return obj.value
+    if isinstance(obj, uuid.UUID):
+        return str(obj)
+    raise TypeError(f"Object of type {type(obj).__name__} is not JSON serializable")
 
 
 class CacheItem(Generic[T]):
@@ -217,12 +245,14 @@ class ValkeyCache:
         try:
             duration = ttl if ttl is not None else self.default_ttl
             expires_at = time.time() + duration
-            payload = json.dumps({"v": value, "exp": expires_at}, ensure_ascii=False)
+            payload = json.dumps(
+                {"v": value, "exp": expires_at}, ensure_ascii=False, default=_json_default
+            )
             # Keep alive in Valkey with extra margin for stale reads (24h)
             valkey_ttl = int(duration + 86400)
             await self._redis.set(key, payload, ex=valkey_ttl)
         except Exception as exc:
-            logger.warning("Valkey set Fehler für %s: %s", key, exc)
+            logger.exception("Valkey set Fehler für %s", key, exc_info=exc)
 
     async def delete(self, key: str) -> bool:
         if not self.is_connected or not self._redis:
@@ -272,6 +302,57 @@ class ValkeyCache:
             return await self._redis.dbsize()
         except Exception:
             return 0
+
+    async def info(self) -> dict[str, Any]:
+        """Liefert relevante Valkey-Server-Metriken für das Dashboard."""
+        if not self.is_connected or not self._redis:
+            return {}
+        try:
+            raw = await self._redis.info()
+        except Exception as exc:
+            logger.warning("Valkey info Fehler: %s", exc)
+            return {}
+
+        def _num(key: str) -> int:
+            try:
+                return int(raw.get(key, 0))
+            except (TypeError, ValueError):
+                return 0
+
+        hits = _num("keyspace_hits")
+        misses = _num("keyspace_misses")
+        total = hits + misses
+        used = _num("used_memory")
+        maxmem = _num("maxmemory")
+        return {
+            "version": raw.get("redis_version", ""),
+            "uptime_seconds": _num("uptime_in_seconds"),
+            "connected_clients": _num("connected_clients"),
+            "used_memory": used,
+            "used_memory_human": raw.get("used_memory_human", ""),
+            "maxmemory": maxmem,
+            "maxmemory_human": raw.get("maxmemory_human", ""),
+            "memory_usage_pct": round(used / maxmem * 100, 1) if maxmem > 0 else 0.0,
+            "keyspace_hits": hits,
+            "keyspace_misses": misses,
+            "hit_ratio_pct": round(hits / total * 100, 1) if total > 0 else 0.0,
+            "evicted_keys": _num("evicted_keys"),
+            "expired_keys": _num("expired_keys"),
+            "total_commands_processed": _num("total_commands_processed"),
+        }
+
+    async def key_counts(self) -> dict[str, int]:
+        """Zählt gecachte Keys gruppiert nach Präfix (kalender, schueler, ...)."""
+        if not self.is_connected or not self._redis:
+            return {}
+        counts: dict[str, int] = {}
+        try:
+            async for k in self._redis.scan_iter(match="*", count=200):
+                prefix = k.split(":", 1)[0] if ":" in k else "_other"
+                counts[prefix] = counts.get(prefix, 0) + 1
+        except Exception as exc:
+            logger.warning("Valkey key_counts Fehler: %s", exc)
+        return counts
 
 
 class UnifiedCache:
@@ -347,6 +428,18 @@ class UnifiedCache:
             "connected": self.is_valkey_active,
             "url": settings.VALKEY_URL if self.is_valkey_active else None,
         }
+
+    async def valkey_info(self) -> dict[str, Any]:
+        """Valkey-Server-Metriken (leer bei Memory-Fallback)."""
+        if self.is_valkey_active:
+            return await self.valkey.info()
+        return {}
+
+    async def valkey_key_counts(self) -> dict[str, int]:
+        """Gecachte Keys nach Präfix (leer bei Memory-Fallback)."""
+        if self.is_valkey_active:
+            return await self.valkey.key_counts()
+        return {}
 
 
 # Global cache instance for gateway

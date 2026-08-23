@@ -101,9 +101,9 @@ app = FastAPI(
         "Dient als Single Source of Truth für `schalti_termine`, `django_rechn`, `django_diacard` und SumUp-Zahlungen."
     ),
     version="1.0.0",
-    docs_url="/docs",
-    redoc_url="/redoc",
-    openapi_url="/openapi.json",
+    docs_url=None,
+    redoc_url=None,
+    openapi_url=None,
     lifespan=lifespan,
     dependencies=[Depends(verify_gateway_api_key)],
 )
@@ -250,6 +250,28 @@ async def apple_touch_icon():
 
 # Include Routers
 app.include_router(main_router)
+
+
+# Self-hosted docs routes (built-in ones disabled above) so that the
+# app-level API-key/network dependency applies to them too.
+from fastapi.openapi.docs import get_swagger_ui_html, get_redoc_html
+
+
+@app.get("/openapi.json", include_in_schema=False, dependencies=[Depends(verify_gateway_api_key)])
+async def custom_openapi():
+    return app.openapi()
+
+
+@app.get("/docs", include_in_schema=False, dependencies=[Depends(verify_gateway_api_key)])
+async def custom_swagger():
+    return get_swagger_ui_html(openapi_url="/openapi.json", title=app.title + " - Docs")
+
+
+@app.get("/redoc", include_in_schema=False, dependencies=[Depends(verify_gateway_api_key)])
+async def custom_redoc():
+    return get_redoc_html(openapi_url="/openapi.json", title=app.title + " - Docs")
+
+
 
 
 if __name__ == "__main__":

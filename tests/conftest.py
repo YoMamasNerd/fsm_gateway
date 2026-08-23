@@ -18,7 +18,7 @@ def setup_test_env(monkeypatch):
     monkeypatch.setattr(settings, "FSM_BASE_URL", "https://api.fahrschulmanager.de")
     monkeypatch.setattr(settings, "FSM_AUTH_URL", "https://login.fahren-lernen.de")
     monkeypatch.setattr(settings, "FSM_PORTAL_URL", "https://portal.fahrschulmanager.de")
-    monkeypatch.setattr(settings, "GATEWAY_API_KEY", "")
+    monkeypatch.setattr(settings, "GATEWAY_API_KEY", "test-gateway-key")
     monkeypatch.setattr(settings, "FSM_AUTH_TOKEN", "test-bearer-token-12345")
 
 
@@ -36,7 +36,8 @@ async def clear_cache_and_client():
 async def async_client():
     """Asynchronous test client for testing FastAPI endpoints."""
     async with httpx.AsyncClient(
-        transport=httpx.ASGITransport(app=app),
+        transport=httpx.ASGITransport(app=app, client=("172.18.0.5", 1234)),
         base_url="http://testserver",
+        headers={"X-API-Key": "test-gateway-key"},
     ) as client:
         yield client

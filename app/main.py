@@ -10,7 +10,7 @@ from pathlib import Path
 
 from fastapi import Depends, FastAPI, Request, status
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse, JSONResponse, Response
+from fastapi.responses import FileResponse, JSONResponse, RedirectResponse, Response
 from fastapi.staticfiles import StaticFiles
 
 import time
@@ -183,19 +183,11 @@ async def fsm_generic_exception_handler(request: Request, exc: FsmException):
 @app.get(
     "/",
     tags=["System"],
-    summary="Gateway Root Information",
+    summary="Gateway Root Dashboard Redirect",
     include_in_schema=False,
 )
-async def root_info() -> dict[str, Any]:
-    return {
-        "service": "FSM-Gateway",
-        "version": "1.0.0",
-        "status": "healthy",
-        "docs": "/docs",
-        "dashboard": "/dashboard",
-        "metrics": "/metrics",
-        "fsm_base_url": settings.FSM_BASE_URL,
-    }
+async def root_redirect():
+    return RedirectResponse(url="/dashboard", status_code=status.HTTP_302_FOUND)
 
 
 @app.get(

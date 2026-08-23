@@ -289,6 +289,23 @@ async def get_dashboard_live(
     }
 
 
+@router.get("/dashboard/api/cache/status", summary="Get Valkey Cache Backend Status")
+async def dashboard_cache_status(
+    fsm_dash_auth: str | None = Cookie(None),
+    authorization: str | None = Header(None),
+) -> dict[str, Any]:
+    """Liefert Valkey-Backend-Status, Server-Metriken und Key-Verteilung."""
+    if not _is_authenticated(fsm_dash_auth, authorization):
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Nicht authentifiziert")
+
+    return {
+        "backend": cache.get_info(),
+        "valkey": await cache.valkey_info(),
+        "key_counts": await cache.valkey_key_counts(),
+        "total_keys": await cache.size(),
+    }
+
+
 @router.post("/dashboard/api/cache/clear", summary="Clear All Gateway Cache Entries")
 async def dashboard_clear_cache(
     fsm_dash_auth: str | None = Cookie(None),
@@ -587,6 +604,31 @@ def _render_dashboard_html() -> str:
                     </div>
                     <div class="small text-secondary mt-2">
                         Aktive Cache-Objekte: <strong class="text-light" id="kpiCacheObjects">-</strong>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-12 col-sm-6 col-xl-3">
+                <div class="card-custom p-3 h-100">
+                    <div class="d-flex justify-content-between align-items-center text-secondary mb-1">
+                        <span class="small fw-semibold">Valkey-Status</span>
+                        <i class="bi bi-database-fill text-info fs-5"></i>
+                    </div>
+                    <div class="d-flex align-items-baseline gap-2">
+                        <h2 class="fw-bold mb-0 text-info" id="kpiValkeyBackend">-</h2>
+                        <span class="small text-secondary" id="kpiValkeyHitRatio">-</span>
+                    </div>
+                    <div class="small text-secondary mt-2">
+                        Memory: <strong class="text-light" id="kpiValkeyMemory">-</strong>
+                    </div>
+                    <div class="progress mt-1" style="height: 6px; background: #1f2937;">
+                        <div class="progress-bar" id="kpiValkeyMemoryBar" role="progressbar" style="width: 0%; background: #3b82f6;" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100"></div>
+                    </div>
+                    <div class="small text-secondary mt-1">
+                        Keys: <strong class="text-light" id="kpiValkeyKeys">-</strong>
+                    </div>
+                    <div class="small mt-1 d-none" id="kpiValkeyEviction">
+                        <span class="badge bg-danger bg-opacity-25 text-danger border border-danger border-opacity-25"><i class="bi bi-exclamation-triangle-fill me-1"></i><span id="kpiValkeyEvictionCount">0</span> Evictions</span>
                     </div>
                 </div>
             </div>
@@ -977,6 +1019,60 @@ def _render_dashboard_html() -> str:
             }
         }
 
+        async function loadValkeyStatus() {
+            try {
+                const res = await fetch('/dashboard/api/cache/status');
+                if (!res.ok) return;
+                const data = await res.json();
+                const backend = data.backend || {};
+                const vk = data.valkey || {};
+
+                const backendEl = document.getElementById('kpiValkeyBackend');
+                const hitEl = document.getElementById('kpiValkeyHitRatio');
+                const memEl = document.getElementById('kpiValkeyMemory');
+                const keysEl = document.getElementById('kpiValkeyKeys');
+                const memBarEl = document.getElementById('kpiValkeyMemoryBar');
+                const evictionEl = document.getElementById('kpiValkeyEviction');
+                const evictionCountEl = document.getElementById('kpiValkeyEvictionCount');
+
+                if (backend.connected) {
+                    backendEl.textContent = 'Valkey';
+                    backendEl.className = 'fw-bold mb-0 text-info';
+                    hitEl.textContent = `${vk.hit_ratio_pct ?? 0}% Hit-Ratio`;
+                    memEl.textContent = `${vk.used_memory_human || '-'} / ${vk.maxmemory_human || '-'} (${vk.memory_usage_pct ?? 0}%)`;
+
+                    // Memory-Balken: Farbe nach Auslastung (blau <70%, gelb <90%, rot >=90%)
+                    const memPct = vk.memory_usage_pct ?? 0;
+                    memBarEl.style.width = `${Math.min(100, memPct)}%`;
+                    memBarEl.style.background = memPct >= 90 ? '#ef4444' : (memPct >= 70 ? '#f59e0b' : '#3b82f6');
+                    memBarEl.setAttribute('aria-valuenow', String(memPct));
+
+                    // Eviction-Warnung nur bei evicted_keys > 0
+                    const evicted = vk.evicted_keys ?? 0;
+                    if (evicted > 0) {
+                        evictionCountEl.textContent = evicted;
+                        evictionEl.classList.remove('d-none');
+                    } else {
+                        evictionEl.classList.add('d-none');
+                    }
+
+                    const kc = data.key_counts || {};
+                    const keyParts = Object.entries(kc).map(([k, v]) => `${k}:${v}`).join(' · ');
+                    keysEl.textContent = `${data.total_keys ?? 0} gesamt${keyParts ? ' — ' + keyParts : ''}`;
+                } else {
+                    backendEl.textContent = 'Memory';
+                    backendEl.className = 'fw-bold mb-0 text-warning';
+                    hitEl.textContent = 'Fallback aktiv';
+                    memEl.textContent = '—';
+                    memBarEl.style.width = '0%';
+                    evictionEl.classList.add('d-none');
+                    keysEl.textContent = `${data.total_keys ?? 0} gesamt`;
+                }
+            } catch (err) {
+                console.error('Error loading Valkey status:', err);
+            }
+        }
+
         async function clearGatewayCache() {
             const btn = document.getElementById('btnClearCache');
             if (!confirm('Möchtest du den gesamten Gateway-Cache leeren? Alle nächsten Abfragen (Kalender, Schüler, Fahrlehrer) werden dann live von FSM geladen.')) {
@@ -1016,10 +1112,12 @@ def _render_dashboard_html() -> str:
         // Initialize dashboard
         loadStats();
         loadLiveFeed();
+        loadValkeyStatus();
 
-        // Refresh intervals: live feed every 3s, charts every 15s
+        // Refresh intervals: live feed every 3s, charts every 15s, valkey every 15s
         setInterval(loadLiveFeed, 3000);
         setInterval(loadStats, 15000);
+        setInterval(loadValkeyStatus, 15000);
     </script>
 </body>
 </html>"""

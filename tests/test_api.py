@@ -8,8 +8,8 @@ import httpx
 @pytest.mark.asyncio
 async def test_root_and_health(async_client: httpx.AsyncClient):
     resp_root = await async_client.get("/")
-    assert resp_root.status_code == 200
-    assert resp_root.json()["service"] == "FSM-Gateway"
+    assert resp_root.status_code == 302
+    assert resp_root.headers["location"] == "/dashboard"
 
     resp_health = await async_client.get("/health")
     assert resp_health.status_code == 200

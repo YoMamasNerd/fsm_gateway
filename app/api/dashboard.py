@@ -15,7 +15,7 @@ from fastapi import APIRouter, Cookie, Depends, Header, HTTPException, Request, 
 from fastapi.responses import HTMLResponse, PlainTextResponse, RedirectResponse
 from pydantic import BaseModel
 
-from app.core.cache import cache
+from app.core.cache import CACHE_CATEGORY_LABELS, cache
 from app.core.client import fsm_client
 from app.core.config import settings
 from app.core.icons import icon, substitute
@@ -303,6 +303,7 @@ async def dashboard_cache_status(
         "backend": cache.get_info(),
         "valkey": await cache.valkey_info(),
         "key_counts": await cache.valkey_key_counts(),
+        "key_labels": CACHE_CATEGORY_LABELS,
         "total_keys": await cache.size(),
     }
 
@@ -1070,7 +1071,19 @@ def _render_dashboard_html() -> str:
                     }
 
                     const kc = data.key_counts || {};
-                    const keyParts = Object.entries(kc).map(([k, v]) => `${k}:${v}`).join(' · ');
+                    const labels = data.key_labels || {
+                        'kalender': 'Kalender',
+                        'fahrlehrer': 'Fahrlehrer',
+                        'schueler': 'Schüler',
+                        'fahrstunden': 'Fahrstunden',
+                        'leistungen': 'Leistungen',
+                        'auth': 'FSM-Auth',
+                        'webhooks': 'Webhooks'
+                    };
+                    const keyParts = Object.entries(kc)
+                        .filter(([_, count]) => count > 0)
+                        .map(([k, v]) => `${labels[k] || k}: ${v}`)
+                        .join(' · ');
                     keysEl.textContent = `${data.total_keys ?? 0} gesamt${keyParts ? ' — ' + keyParts : ''}`;
                 } else {
                     backendEl.textContent = 'Memory';
@@ -1079,7 +1092,22 @@ def _render_dashboard_html() -> str:
                     memEl.textContent = '—';
                     memBarEl.style.width = '0%';
                     evictionEl.classList.add('d-none');
-                    keysEl.textContent = `${data.total_keys ?? 0} gesamt`;
+
+                    const kc = data.key_counts || {};
+                    const labels = data.key_labels || {
+                        'kalender': 'Kalender',
+                        'fahrlehrer': 'Fahrlehrer',
+                        'schueler': 'Schüler',
+                        'fahrstunden': 'Fahrstunden',
+                        'leistungen': 'Leistungen',
+                        'auth': 'FSM-Auth',
+                        'webhooks': 'Webhooks'
+                    };
+                    const keyParts = Object.entries(kc)
+                        .filter(([_, count]) => count > 0)
+                        .map(([k, v]) => `${labels[k] || k}: ${v}`)
+                        .join(' · ');
+                    keysEl.textContent = `${data.total_keys ?? 0} gesamt${keyParts ? ' — ' + keyParts : ''}`;
                 }
             } catch (err) {
                 console.error('Error loading Valkey status:', err);

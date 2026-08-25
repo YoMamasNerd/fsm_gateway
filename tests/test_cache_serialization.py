@@ -12,7 +12,7 @@ import datetime as dt
 
 import pytest
 
-from app.core.cache import ValkeyCache, _json_default
+from app.core.cache import AsyncTTLCache, ValkeyCache, _json_default
 from app.schemas.kalender import KalenderEvent, KalenderResponse
 
 
@@ -145,10 +145,31 @@ async def test_valkey_info_and_key_counts():
     info = await vc.info()
     assert isinstance(info, dict)
 
-    # key_counts zaehlt nach Praefix
+    # key_counts zaehlt nach semantischen Kategorien
     await vc.set("kalender:fl-1:2026-08-20:2026-08-21:False:True", {"a": 1}, ttl=60)
     await vc.set("kalender:fl-2:2026-08-20:2026-08-21:False:True", {"a": 2}, ttl=60)
     await vc.set("schueler:details:stu-1", {"b": 3}, ttl=60)
+    await vc.set("schueler:fahrstunden:stu-1:True:1:50", {"c": 4}, ttl=60)
+    await vc.set("schueler:leistungen:stu-1:True:1:50", {"d": 5}, ttl=60)
+    await vc.set("fahrlehrer:active:True", {"e": 6}, ttl=60)
+    await vc.set("fsm:auth_token", "token-xyz", ttl=60)
+    await vc.set("fsm:webhook:processed:evt-123", True, ttl=60)
+
     counts = await vc.key_counts()
     assert counts["kalender"] == 2
     assert counts["schueler"] == 1
+    assert counts["fahrstunden"] == 1
+    assert counts["leistungen"] == 1
+    assert counts["fahrlehrer"] == 1
+    assert counts["auth"] == 1
+    assert counts["webhooks"] == 1
+
+    # Auch AsyncTTLCache (Memory Fallback) muss key_counts unterstuetzen
+    mem = AsyncTTLCache(default_ttl=60)
+    await mem.set("kalender:fl-1:test", {"x": 1})
+    await mem.set("fahrlehrer:active:True", {"x": 2})
+    await mem.set("fsm:api_key", "api-key-123")
+    mem_counts = await mem.key_counts()
+    assert mem_counts["kalender"] == 1
+    assert mem_counts["fahrlehrer"] == 1
+    assert mem_counts["auth"] == 1

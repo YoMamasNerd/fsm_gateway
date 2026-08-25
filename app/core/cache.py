@@ -51,6 +51,50 @@ def _json_default(obj: Any) -> Any:
     raise TypeError(f"Object of type {type(obj).__name__} is not JSON serializable")
 
 
+CACHE_CATEGORY_LABELS: dict[str, str] = {
+    "kalender": "Kalender / Termine",
+    "fahrlehrer": "Fahrlehrer",
+    "schueler": "Schülerdaten",
+    "fahrstunden": "Fahrstunden",
+    "leistungen": "Leistungen",
+    "auth": "FSM Auth / Session",
+    "webhooks": "Webhooks",
+    "sonstige": "Sonstige",
+}
+
+
+def classify_cache_key(key: str) -> tuple[str, str]:
+    """Ordnet einen Cache-Key einer verständlichen Kategorie und einem Anzeigenamen zu.
+
+    Returns: (category_id, display_label)
+    """
+    if key.startswith("kalender:"):
+        return "kalender", CACHE_CATEGORY_LABELS["kalender"]
+    elif key.startswith("schueler:fahrstunden:"):
+        return "fahrstunden", CACHE_CATEGORY_LABELS["fahrstunden"]
+    elif key.startswith("schueler:leistungen:"):
+        return "leistungen", CACHE_CATEGORY_LABELS["leistungen"]
+    elif key.startswith("schueler:") or key.startswith("fsm:schueler:"):
+        return "schueler", CACHE_CATEGORY_LABELS["schueler"]
+    elif (
+        key.startswith("fahrlehrer:")
+        or key.startswith("endpoint:fahrlehrer:")
+        or key.startswith("fsm:fahrlehrer:")
+    ):
+        return "fahrlehrer", CACHE_CATEGORY_LABELS["fahrlehrer"]
+    elif key.startswith("fsm:webhook:"):
+        return "webhooks", CACHE_CATEGORY_LABELS["webhooks"]
+    elif (
+        key in ("fsm:auth_token", "fsm:api_key")
+        or key.startswith("fsm:auth")
+        or key.startswith("fsm:token")
+    ):
+        return "auth", CACHE_CATEGORY_LABELS["auth"]
+    else:
+        prefix = key.split(":", 1)[0] if ":" in key else "sonstige"
+        return prefix, CACHE_CATEGORY_LABELS.get(prefix, prefix.capitalize())
+
+
 class CacheItem(Generic[T]):
     """Internal memory cache entry container."""
 
@@ -155,6 +199,17 @@ class AsyncTTLCache:
         await self.cleanup()
         async with self._lock:
             return len(self._storage)
+
+    async def key_counts(self) -> dict[str, int]:
+        """Return cached items count grouped by semantic category."""
+        now = time.time()
+        counts: dict[str, int] = {}
+        async with self._lock:
+            for k, item in self._storage.items():
+                if now <= item.expires_at:
+                    cat, _ = classify_cache_key(k)
+                    counts[cat] = counts.get(cat, 0) + 1
+        return counts
 
 
 class ValkeyCache:
@@ -342,14 +397,14 @@ class ValkeyCache:
         }
 
     async def key_counts(self) -> dict[str, int]:
-        """Zählt gecachte Keys gruppiert nach Präfix (kalender, schueler, ...)."""
+        """Zählt gecachte Keys gruppiert nach sprechender Kategorie."""
         if not self.is_connected or not self._redis:
             return {}
         counts: dict[str, int] = {}
         try:
             async for k in self._redis.scan_iter(match="*", count=200):
-                prefix = k.split(":", 1)[0] if ":" in k else "_other"
-                counts[prefix] = counts.get(prefix, 0) + 1
+                cat, _ = classify_cache_key(k)
+                counts[cat] = counts.get(cat, 0) + 1
         except Exception as exc:
             logger.warning("Valkey key_counts Fehler: %s", exc)
         return counts
@@ -436,10 +491,10 @@ class UnifiedCache:
         return {}
 
     async def valkey_key_counts(self) -> dict[str, int]:
-        """Gecachte Keys nach Präfix (leer bei Memory-Fallback)."""
-        if self.is_valkey_active:
+        """Gecachte Keys nach Kategorie (Valkey oder Memory-Fallback)."""
+        if self.is_valkey_active and self.valkey:
             return await self.valkey.key_counts()
-        return {}
+        return await self.memory.key_counts()
 
 
 # Global cache instance for gateway

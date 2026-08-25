@@ -25,10 +25,12 @@ async def list_fahrlehrer(
     refresh: bool = Query(default=False, description="Cache-Eintrag überspringen und frisch von FSM abrufen"),
 ) -> FahrlehrerListResponse:
     force_refresh = refresh or request.headers.get("x-refresh-cache") == "1"
-    cache_key = f"endpoint:fahrlehrer:active:{only_active}"
+    cache_key = f"fahrlehrer:active:{only_active}"
 
     if not force_refresh:
         cached_res = await cache.get(cache_key)
+        if cached_res is None:
+            cached_res = await cache.get(f"endpoint:fahrlehrer:active:{only_active}")
         if cached_res is not None:
             response.headers["X-Cache-Hit"] = "1"
             return cached_res
@@ -71,6 +73,8 @@ async def list_fahrlehrer(
 )
 async def refresh_fahrlehrer_cache(request: Request, response: Response) -> FahrlehrerListResponse:
     try:
+        await cache.delete("fahrlehrer:active:True")
+        await cache.delete("fahrlehrer:active:False")
         await cache.delete("endpoint:fahrlehrer:active:True")
         await cache.delete("endpoint:fahrlehrer:active:False")
         await cache.delete("fsm:fahrlehrer:True")

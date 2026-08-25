@@ -1,7 +1,7 @@
 """Authentication API endpoints."""
 
 import logging
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter, HTTPException, Response, status
 
 from app.core.client import FsmAuthError, FsmConfigError, fsm_client
 from app.schemas.auth import AuthStatusResponse, LoginRequest, LoginResponse
@@ -16,7 +16,8 @@ router = APIRouter(prefix="/auth", tags=["Authentifizierung"])
     summary="FSM Authentifizierungs-Status prüfen",
     description="Prüft, ob ein gültiges Token existiert und ob die Verbindung zur FSM-API steht.",
 )
-async def get_auth_status() -> AuthStatusResponse:
+async def get_auth_status(response: Response) -> AuthStatusResponse:
+    response.headers["X-Cache-Hit"] = "0"
     try:
         data = await fsm_client.get_auth_status()
         return AuthStatusResponse(**data)

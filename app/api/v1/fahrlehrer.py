@@ -4,7 +4,7 @@ import logging
 from fastapi import APIRouter, HTTPException, Query, Request, Response, status
 
 from app.core.cache import cache
-from app.core.client import FsmApiError, fsm_client
+from app.core.client import FsmException, fsm_client
 from app.core.config import settings
 from app.schemas.fahrlehrer import FahrlehrerItem, FahrlehrerListResponse
 
@@ -36,7 +36,7 @@ async def list_fahrlehrer(
             return cached_res
 
     try:
-        raw_list = await fsm_client.get_fahrlehrer(only_active=only_active)
+        raw_list = await fsm_client.get_fahrlehrer(only_active=only_active, fresh=force_refresh)
         items: list[FahrlehrerItem] = []
         for r in raw_list:
             items.append(
@@ -54,9 +54,10 @@ async def list_fahrlehrer(
             )
         result = FahrlehrerListResponse(count=len(items), fahrlehrer=items)
         await cache.set(cache_key, result, ttl=settings.FAHRLEHRER_CACHE_TTL_SECONDS)
+        response.headers["X-Cache-Hit"] = "0"
         return result
-    except FsmApiError as exc:
-        raise HTTPException(status_code=exc.status_code, detail=str(exc))
+    except (FsmException, HTTPException):
+        raise
     except Exception as exc:
         logger.error("Fehler beim Abrufen der Fahrlehrer: %s", exc)
         raise HTTPException(
@@ -73,14 +74,9 @@ async def list_fahrlehrer(
 )
 async def refresh_fahrlehrer_cache(request: Request, response: Response) -> FahrlehrerListResponse:
     try:
-        await cache.delete("fahrlehrer:active:True")
-        await cache.delete("fahrlehrer:active:False")
-        await cache.delete("endpoint:fahrlehrer:active:True")
-        await cache.delete("endpoint:fahrlehrer:active:False")
-        await cache.delete("fsm:fahrlehrer:True")
-        await cache.delete("fsm:fahrlehrer:False")
-        await cache.delete("fsm:fahrlehrer:active:True")
-        await cache.delete("fsm:fahrlehrer:active:False")
+        await cache.delete_prefix("fahrlehrer:")
+        await cache.delete_prefix("endpoint:fahrlehrer:")
+        await cache.delete_prefix("fsm:fahrlehrer:")
         return await list_fahrlehrer(request=request, response=response, only_active=True, refresh=True)
     except Exception as exc:
         logger.error("Fehler beim Cache-Refresh der Fahrlehrer: %s", exc)

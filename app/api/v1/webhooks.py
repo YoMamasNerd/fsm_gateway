@@ -102,15 +102,20 @@ async def handle_sumup_webhook(payload: SumUpWebhookEvent) -> SumUpWebhookRespon
             )
 
         # Invalidate student cache
-        await cache.delete_prefix(f"schueler:leistungen:{target_student_uuid}")
-        await cache.delete_prefix(f"schueler:details:{target_student_uuid}")
+        clean_target_sid = str(target_student_uuid).strip()
+        await cache.delete_prefix(f"schueler:leistungen:{clean_target_sid}")
+        await cache.delete_prefix(f"schueler:details:{clean_target_sid}")
+        await cache.delete_prefix(f"schueler:fahrstunden:{clean_target_sid}")
+        await cache.delete_prefix(f"fsm:schueler:{clean_target_sid}")
+        await cache.delete_prefix(f"fsm:leistungen:{clean_target_sid}")
+        await cache.delete_prefix(f"fsm:fahrstunden:{clean_target_sid}")
 
         return SumUpWebhookResponse(
             success=True,
             action_taken="booked_payment",
-            student_uuid=target_student_uuid,
+            student_uuid=clean_target_sid,
             betrag=amount,
-            message=f"Zahlung über {amount:.2f} € für Schüler {matched_student_name or target_student_uuid} erfolgreich in FSM eingebucht.",
+            message=f"Zahlung über {amount:.2f} € für Schüler {matched_student_name or clean_target_sid} erfolgreich in FSM eingebucht.",
         )
     except Exception as exc:
         logger.error("Fehler beim automatischen Einbuchen der SumUp-Zahlung: %s", exc)

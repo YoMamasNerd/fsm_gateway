@@ -68,13 +68,24 @@ def classify_cache_key(key: str) -> tuple[str, str]:
 
     Returns: (category_id, display_label)
     """
-    if key.startswith("kalender:"):
+    if key.startswith("kalender:") or key.startswith("fsm:kalender:"):
         return "kalender", CACHE_CATEGORY_LABELS["kalender"]
-    elif key.startswith("schueler:fahrstunden:"):
+    elif (
+        key.startswith("schueler:fahrstunden:")
+        or key.startswith("fsm:fahrstunden:")
+        or key.startswith("fsm:schueler:fahrstunden:")
+    ):
         return "fahrstunden", CACHE_CATEGORY_LABELS["fahrstunden"]
-    elif key.startswith("schueler:leistungen:"):
+    elif (
+        key.startswith("schueler:leistungen:")
+        or key.startswith("fsm:leistungen:")
+        or key.startswith("fsm:schueler:leistungen:")
+    ):
         return "leistungen", CACHE_CATEGORY_LABELS["leistungen"]
-    elif key.startswith("schueler:") or key.startswith("fsm:schueler:"):
+    elif (
+        key.startswith("schueler:")
+        or key.startswith("fsm:schueler:")
+    ):
         return "schueler", CACHE_CATEGORY_LABELS["schueler"]
     elif (
         key.startswith("fahrlehrer:")
@@ -82,7 +93,7 @@ def classify_cache_key(key: str) -> tuple[str, str]:
         or key.startswith("fsm:fahrlehrer:")
     ):
         return "fahrlehrer", CACHE_CATEGORY_LABELS["fahrlehrer"]
-    elif key.startswith("fsm:webhook:"):
+    elif key.startswith("fsm:webhook:") or key.startswith("webhook:"):
         return "webhooks", CACHE_CATEGORY_LABELS["webhooks"]
     elif (
         key in ("fsm:auth_token", "fsm:api_key")

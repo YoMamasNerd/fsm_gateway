@@ -6,10 +6,11 @@ import datetime as dt
 import logging
 import re
 from typing import Any
-from fastapi import APIRouter, HTTPException, Path, Query, status
+from fastapi import APIRouter, HTTPException, Path, Query, Request, Response, status
 
+from app.core.cache import cache
 from app.core.config import settings
-from app.core.client import FsmApiError, fsm_client
+from app.core.client import FsmException, fsm_client
 from app.schemas.finanzen import (
     FahrstundeItem,
     FahrstundenResponse,
@@ -55,10 +56,6 @@ def _parse_date_time_desc(desc: str | None) -> tuple[str | None, str | None]:
     return date_str, time_str
 
 
-from app.core.cache import cache
-from fastapi import APIRouter, HTTPException, Path, Query, Request, Response, status
-
-
 @router.get(
     "/schueler/{student_uuid}/fahrstunden",
     response_model=FahrstundenResponse,
@@ -74,7 +71,8 @@ async def get_fahrstunden(
     page_size: int = Query(default=100, ge=1, le=500, description="Einträge pro Seite"),
     refresh: bool = Query(default=False, description="Erzwingt Live-Abruf"),
 ) -> FahrstundenResponse:
-    cache_key = f"schueler:fahrstunden:{student_uuid}:{skip_deleted}:{page}:{page_size}"
+    clean_uuid = student_uuid.strip()
+    cache_key = f"schueler:fahrstunden:{clean_uuid}:{skip_deleted}:{page}:{page_size}"
     force_refresh = refresh or request.headers.get("x-refresh-cache") == "1"
 
     if not force_refresh:
@@ -105,11 +103,11 @@ async def get_fahrstunden(
             desc = str(data.get("beschreibung") or data.get("text") or "")
             parsed_date, parsed_time = _parse_date_time_desc(desc)
 
-            mins = float(data.get("minuten") or data.get("dauer") or 45.0)
+            mins = _parse_german_number(data.get("minuten") or data.get("dauer")) or 45.0
             total_mins += mins
 
             price_val = data.get("betrag") or data.get("kosten")
-            price_float = float(price_val) if price_val is not None else None
+            price_float = _parse_german_number(price_val)
 
             # Date fallback
             raw_datum = data.get("datum")
@@ -133,7 +131,7 @@ async def get_fahrstunden(
             )
 
         result = FahrstundenResponse(
-            student_uuid=student_uuid,
+            student_uuid=clean_uuid,
             count=len(lessons),
             total_minutes=total_mins,
             fahrstunden=lessons,
@@ -142,10 +140,10 @@ async def get_fahrstunden(
         response.headers["X-Cache-Hit"] = "0"
         return result
 
-    except FsmApiError as exc:
-        raise HTTPException(status_code=exc.status_code, detail=str(exc))
+    except (FsmException, HTTPException):
+        raise
     except Exception as exc:
-        logger.error("Fehler beim Abrufen der Fahrstunden für %s: %s", student_uuid, exc)
+        logger.error("Fehler beim Abrufen der Fahrstunden für %s: %s", clean_uuid, exc)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Fahrstunden-Abruf fehlgeschlagen: {exc}",
@@ -167,7 +165,8 @@ async def get_leistungen(
     page_size: int = Query(default=500, ge=1, le=1000, description="Einträge pro Seite"),
     refresh: bool = Query(default=False, description="Erzwingt Live-Abruf"),
 ) -> LeistungenResponse:
-    cache_key = f"schueler:leistungen:{student_uuid}:{skip_deleted}:{page}:{page_size}"
+    clean_uuid = student_uuid.strip()
+    cache_key = f"schueler:leistungen:{clean_uuid}:{skip_deleted}:{page}:{page_size}"
     force_refresh = refresh or request.headers.get("x-refresh-cache") == "1"
 
     if not force_refresh:
@@ -178,7 +177,7 @@ async def get_leistungen(
 
     try:
         raw_res = await fsm_client.get_schueler_leistungen(
-            student_uuid=student_uuid,
+            student_uuid=clean_uuid,
             skip_deleted=skip_deleted,
             page=page,
             page_size=page_size,
@@ -223,7 +222,7 @@ async def get_leistungen(
             )
 
         result = LeistungenResponse(
-            student_uuid=student_uuid,
+            student_uuid=clean_uuid,
             count=len(items),
             total_kosten=round(total_kosten, 2),
             total_zahlungen=round(total_zahlungen, 2),
@@ -233,10 +232,10 @@ async def get_leistungen(
         response.headers["X-Cache-Hit"] = "0"
         return result
 
-    except FsmApiError as exc:
-        raise HTTPException(status_code=exc.status_code, detail=str(exc))
+    except (FsmException, HTTPException):
+        raise
     except Exception as exc:
-        logger.error("Fehler beim Abrufen der Leistungen für %s: %s", student_uuid, exc)
+        logger.error("Fehler beim Abrufen der Leistungen für %s: %s", clean_uuid, exc)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Leistungen-Abruf fehlgeschlagen: {exc}",
@@ -254,11 +253,12 @@ async def create_zahlung(
     student_uuid: str = Path(..., description="FSM Schüler-UUID"),
     payload: ZahlungCreateRequest = ...,
 ) -> ZahlungResponse:
+    clean_uuid = student_uuid.strip()
     booking_date = payload.datum or dt.date.today().isoformat()
 
     try:
         res = await fsm_client.create_zahlung(
-            student_uuid=student_uuid,
+            student_uuid=clean_uuid,
             betrag=payload.betrag,
             datum=booking_date,
             zahlungsart=payload.zahlungsart,
@@ -266,23 +266,27 @@ async def create_zahlung(
             belegnummer=payload.belegnummer,
         )
 
-        # Invalidate student's account balance and services cache
-        await cache.delete_prefix(f"schueler:leistungen:{student_uuid}")
-        await cache.delete_prefix(f"schueler:details:{student_uuid}")
+        # Invalidate student's account balance, services, and lesson cache
+        await cache.delete_prefix(f"schueler:leistungen:{clean_uuid}")
+        await cache.delete_prefix(f"schueler:details:{clean_uuid}")
+        await cache.delete_prefix(f"schueler:fahrstunden:{clean_uuid}")
+        await cache.delete_prefix(f"fsm:schueler:{clean_uuid}")
+        await cache.delete_prefix(f"fsm:leistungen:{clean_uuid}")
+        await cache.delete_prefix(f"fsm:fahrstunden:{clean_uuid}")
 
         return ZahlungResponse(
             success=True,
-            student_uuid=student_uuid,
+            student_uuid=clean_uuid,
             betrag=payload.betrag,
             zahlungsart=payload.zahlungsart,
             belegnummer=payload.belegnummer,
             message=f"Zahlung von {payload.betrag:.2f} € erfolgreich in FSM eingebucht.",
         )
 
-    except FsmApiError as exc:
-        raise HTTPException(status_code=exc.status_code, detail=str(exc))
+    except (FsmException, HTTPException):
+        raise
     except Exception as exc:
-        logger.error("Fehler beim Einbuchen der Zahlung für %s: %s", student_uuid, exc)
+        logger.error("Fehler beim Einbuchen der Zahlung für %s: %s", clean_uuid, exc)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Zahlungseinbuchung fehlgeschlagen: {exc}",

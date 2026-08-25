@@ -18,6 +18,7 @@ from pydantic import BaseModel
 from app.core.cache import cache
 from app.core.client import fsm_client
 from app.core.config import settings
+from app.core.icons import icon, substitute
 from app.core.metrics import metrics_collector
 
 router = APIRouter(tags=["Monitoring & Dashboard"])
@@ -347,10 +348,10 @@ def _render_login_html() -> str:
 
     sso_html = ""
     if sso_enabled:
-        sso_html = """
+        sso_html = f"""
         <div class="mb-3">
             <a href="/dashboard/auth/sso/login" class="btn btn-primary w-100 py-2 fw-semibold rounded-3 d-flex align-items-center justify-content-center gap-2 text-decoration-none shadow-sm">
-                <i class="bi bi-shield-lock fs-5"></i> Mit VoidAuth SSO anmelden
+                {icon('shield-check', 'fs-5')} Mit VoidAuth SSO anmelden
             </a>
         </div>
         """
@@ -366,7 +367,7 @@ def _render_login_html() -> str:
 
     password_html = ""
     if has_password:
-        password_html = """
+        password_html = f"""
         <form id="loginForm" onsubmit="handleLogin(event)">
             <div class="mb-3 text-start">
                 <label for="password" class="form-label small text-secondary">Admin Passwort</label>
@@ -374,7 +375,7 @@ def _render_login_html() -> str:
             </div>
             <div id="errorAlert" class="alert alert-danger py-2 small d-none" role="alert"></div>
             <button type="submit" class="btn btn-outline-light w-100 py-2 fw-semibold rounded-3" id="submitBtn">
-                <i class="bi bi-box-arrow-in-right me-1"></i> Anmelden
+                {icon('log-in', 'me-1')} Anmelden
             </button>
         </form>
         """
@@ -393,7 +394,6 @@ def _render_login_html() -> str:
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
     <style>
         body {{
             font-family: 'Inter', system-ui, -apple-system, sans-serif;
@@ -404,6 +404,13 @@ def _render_login_html() -> str:
             align-items: center;
             justify-content: center;
         }}
+        svg.icon {{
+            width: 0.85em;
+            height: 0.85em;
+            flex-shrink: 0;
+            vertical-align: -0.12em;
+        }}
+        a .icon, button .icon {{ pointer-events: none; }}
         .login-card {{
             background: #1e293b;
             border: 1px solid #334155;
@@ -425,7 +432,7 @@ def _render_login_html() -> str:
 <body>
     <div class="p-4 login-card text-center">
         <div class="rounded-circle bg-primary bg-opacity-10 text-primary d-inline-flex p-3 mb-3">
-            <i class="bi bi-shield-lock-fill fs-2"></i>
+            {icon('lock-keyhole', 'fs-2')}
         </div>
         <h4 class="fw-bold mb-1">FSM Gateway</h4>
         <p class="text-secondary small mb-4">Authentifizierung für Dashboard erforderlich</p>
@@ -470,7 +477,7 @@ def _render_login_html() -> str:
 
 def _render_dashboard_html() -> str:
     """HTML for the modern interactive metrics dashboard."""
-    return """<!DOCTYPE html>
+    return substitute("""<!DOCTYPE html>
 <html lang="de" data-bs-theme="dark">
 <head>
     <meta charset="UTF-8">
@@ -484,7 +491,6 @@ def _render_dashboard_html() -> str:
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.2/dist/chart.umd.min.js"></script>
     <style>
         body {
@@ -493,6 +499,13 @@ def _render_dashboard_html() -> str:
             color: #f1f5f9;
             min-height: 100vh;
         }
+        svg.icon {
+            width: 0.85em;
+            height: 0.85em;
+            flex-shrink: 0;
+            vertical-align: -0.12em;
+        }
+        a .icon, button .icon { pointer-events: none; }
         .navbar-custom {
             background: rgba(15, 23, 42, 0.85);
             backdrop-filter: blur(12px);
@@ -540,7 +553,7 @@ def _render_dashboard_html() -> str:
         <div class="container-fluid d-flex justify-content-between align-items-center">
             <div class="d-flex align-items-center gap-3">
                 <div class="d-flex align-items-center gap-2">
-                    <span class="fs-4">🚗⚡</span>
+                    <span class="fs-4 d-inline-flex align-items-center gap-1">{{icon:car-front}}{{icon:zap}}</span>
                     <span class="fw-bold fs-5 text-white">FSM Gateway</span>
                     <span class="badge bg-secondary bg-opacity-25 text-secondary border border-secondary border-opacity-25 rounded-pill px-2 py-1 small">v1.0.0</span>
                 </div>
@@ -560,14 +573,14 @@ def _render_dashboard_html() -> str:
 
                 <!-- Cache Clear Button -->
                 <button type="button" id="btnClearCache" class="btn btn-sm btn-outline-warning rounded-pill px-3 fw-medium" onclick="clearGatewayCache()" title="Gesamten In-Memory Cache des Gateways sofort leeren">
-                    <i class="bi bi-trash3 me-1"></i> Cache leeren
+                    {{icon:trash-2:me-1}} Cache leeren
                 </button>
 
                 <a href="/docs" target="_blank" class="btn btn-sm btn-outline-secondary rounded-pill px-3 text-decoration-none">
-                    <i class="bi bi-code-slash me-1"></i> API Docs
+                    {{icon:code-xml:me-1}} API Docs
                 </a>
                 <button type="button" class="btn btn-sm btn-outline-danger rounded-pill px-3" onclick="logout()">
-                    <i class="bi bi-box-arrow-right"></i>
+                    {{icon:log-out}}
                 </button>
             </div>
         </div>
@@ -580,7 +593,7 @@ def _render_dashboard_html() -> str:
                 <div class="card-custom p-3 h-100">
                     <div class="d-flex justify-content-between align-items-center text-secondary mb-1">
                         <span class="small fw-semibold">Anfragen (Gewählter Zeitraum)</span>
-                        <i class="bi bi-activity text-primary fs-5"></i>
+                        <span class="text-primary fs-5">{{icon:activity}}</span>
                     </div>
                     <div class="d-flex align-items-baseline gap-2">
                         <h2 class="fw-bold mb-0 text-white" id="kpiTotalReq">-</h2>
@@ -596,7 +609,7 @@ def _render_dashboard_html() -> str:
                 <div class="card-custom p-3 h-100">
                     <div class="d-flex justify-content-between align-items-center text-secondary mb-1">
                         <span class="small fw-semibold">Cache-Effizienz</span>
-                        <i class="bi bi-lightning-charge-fill text-warning fs-5"></i>
+                        <span class="text-warning fs-5">{{icon:zap}}</span>
                     </div>
                     <div class="d-flex align-items-baseline gap-2">
                         <h2 class="fw-bold mb-0 text-warning" id="kpiCacheRatio">-%</h2>
@@ -612,7 +625,7 @@ def _render_dashboard_html() -> str:
                 <div class="card-custom p-3 h-100">
                     <div class="d-flex justify-content-between align-items-center text-secondary mb-1">
                         <span class="small fw-semibold">Valkey-Status</span>
-                        <i class="bi bi-database-fill text-info fs-5"></i>
+                        <span class="text-info fs-5">{{icon:database}}</span>
                     </div>
                     <div class="d-flex align-items-baseline gap-2">
                         <h2 class="fw-bold mb-0 text-info" id="kpiValkeyBackend">-</h2>
@@ -628,7 +641,7 @@ def _render_dashboard_html() -> str:
                         Keys: <strong class="text-light" id="kpiValkeyKeys">-</strong>
                     </div>
                     <div class="small mt-1 d-none" id="kpiValkeyEviction">
-                        <span class="badge bg-danger bg-opacity-25 text-danger border border-danger border-opacity-25"><i class="bi bi-exclamation-triangle-fill me-1"></i><span id="kpiValkeyEvictionCount">0</span> Evictions</span>
+                        <span class="badge bg-danger bg-opacity-25 text-danger border border-danger border-opacity-25">{{icon:triangle-alert:me-1}}<span id="kpiValkeyEvictionCount">0</span> Evictions</span>
                     </div>
                 </div>
             </div>
@@ -637,7 +650,7 @@ def _render_dashboard_html() -> str:
                 <div class="card-custom p-3 h-100">
                     <div class="d-flex justify-content-between align-items-center text-secondary mb-1">
                         <span class="small fw-semibold">Durchschnittliche Latenz</span>
-                        <i class="bi bi-stopwatch-fill text-info fs-5"></i>
+                        <span class="text-info fs-5">{{icon:timer}}</span>
                     </div>
                     <div class="d-flex align-items-baseline gap-2">
                         <h2 class="fw-bold mb-0 text-info" id="kpiLatency">- ms</h2>
@@ -653,7 +666,7 @@ def _render_dashboard_html() -> str:
                 <div class="card-custom p-3 h-100">
                     <div class="d-flex justify-content-between align-items-center text-secondary mb-1">
                         <span class="small fw-semibold">Fehlerquote & Uptime</span>
-                        <i class="bi bi-shield-check text-success fs-5"></i>
+                        <span class="text-success fs-5">{{icon:shield-check}}</span>
                     </div>
                     <div class="d-flex align-items-baseline gap-2">
                         <h2 class="fw-bold mb-0 text-success" id="kpiErrorRate">0.0%</h2>
@@ -671,7 +684,7 @@ def _render_dashboard_html() -> str:
             <div class="col-12 col-lg-8">
                 <div class="card-custom p-3 h-100">
                     <div class="d-flex justify-content-between align-items-center mb-3">
-                        <h6 class="fw-bold mb-0 text-light"><i class="bi bi-bar-chart-fill text-primary me-2"></i>Anfragevolumen & Cache-Treffer</h6>
+                        <h6 class="fw-bold mb-0 text-light">{{icon:chart-column:text-primary:me-2}}Anfragevolumen & Cache-Treffer</h6>
                         <span class="badge bg-secondary bg-opacity-25 text-secondary border border-secondary border-opacity-25" id="chartRangeLabel">24 Stunden</span>
                     </div>
                     <div style="position: relative; height: 260px;">
@@ -683,7 +696,7 @@ def _render_dashboard_html() -> str:
             <div class="col-12 col-lg-4">
                 <div class="card-custom p-3 h-100">
                     <div class="d-flex justify-content-between align-items-center mb-3">
-                        <h6 class="fw-bold mb-0 text-light"><i class="bi bi-pie-chart-fill text-info me-2"></i>HTTP Statusverteilung</h6>
+                        <h6 class="fw-bold mb-0 text-light">{{icon:chart-pie:text-info:me-2}}HTTP Statusverteilung</h6>
                     </div>
                     <div style="position: relative; height: 260px;">
                         <canvas id="statusChart"></canvas>
@@ -697,7 +710,7 @@ def _render_dashboard_html() -> str:
             <!-- Top Endpoints -->
             <div class="col-12 col-lg-6">
                 <div class="card-custom p-3 h-100">
-                    <h6 class="fw-bold mb-3 text-light"><i class="bi bi-trophy-fill text-warning me-2"></i>Meistaufgerufene Endpunkte</h6>
+                    <h6 class="fw-bold mb-3 text-light">{{icon:trophy:text-warning:me-2}}Meistaufgerufene Endpunkte</h6>
                     <div class="table-responsive">
                         <table class="table table-custom table-hover align-middle mb-0 small">
                             <thead class="text-secondary">
@@ -1085,7 +1098,7 @@ def _render_dashboard_html() -> str:
                 const resp = await fetch('/dashboard/api/cache/clear', { method: 'POST' });
                 const data = await resp.json();
                 if (resp.ok && data.success) {
-                    btn.innerHTML = '<i class="bi bi-check-circle-fill me-1"></i> Geleert!';
+                    btn.innerHTML = '{{icon:circle-check:me-1}} Geleert!';
                     btn.classList.remove('btn-outline-warning');
                     btn.classList.add('btn-success');
                     setTimeout(() => {
@@ -1120,4 +1133,4 @@ def _render_dashboard_html() -> str:
         setInterval(loadValkeyStatus, 15000);
     </script>
 </body>
-</html>"""
+</html>""")

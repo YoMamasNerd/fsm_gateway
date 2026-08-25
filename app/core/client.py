@@ -1171,6 +1171,126 @@ class FSMClient:
         await cache.set(cache_key, items, ttl=settings.KASSENBUCH_CACHE_TTL_SECONDS)
         return items
 
+    async def get_preislisten(self, fresh: bool = False) -> list[dict[str, Any]]:
+        """Liefert alle Preislisten (read-only)."""
+        cache_key = "fsm:preislisten"
+        if not fresh:
+            cached = await cache.get(cache_key)
+            if cached is not None and isinstance(cached, list):
+                return cached
+
+        res = await self.request("GET", "v1/preislisten")
+        items: list[dict[str, Any]] = res if isinstance(res, list) else []
+        await cache.set(cache_key, items, ttl=settings.STAMMDATEN_CACHE_TTL_SECONDS)
+        return items
+
+    async def get_preispositionen(self, preisliste_id: str, fresh: bool = False) -> list[dict[str, Any]]:
+        """Liefert alle Preispositionen einer Preisliste (read-only)."""
+        cache_key = f"fsm:preispositionen:{preisliste_id}"
+        if not fresh:
+            cached = await cache.get(cache_key)
+            if cached is not None and isinstance(cached, list):
+                return cached
+
+        res = await self.request("GET", f"v1/preislisten/preispositionen/{preisliste_id}")
+        items: list[dict[str, Any]] = res if isinstance(res, list) else []
+        await cache.set(cache_key, items, ttl=settings.STAMMDATEN_CACHE_TTL_SECONDS)
+        return items
+
+    async def get_schueler_preisliste(self, student_uuid: str, fresh: bool = False) -> list[dict[str, Any]]:
+        """Liefert die für den Schüler hinterlegten Preispositionen (read-only)."""
+        cache_key = f"fsm:schueler:preisliste:{student_uuid}"
+        if not fresh:
+            cached = await cache.get(cache_key)
+            if cached is not None and isinstance(cached, list):
+                return cached
+
+        res = await self.request("GET", f"v1/preislisten/schueler/{student_uuid}")
+        items: list[dict[str, Any]] = res if isinstance(res, list) else []
+        await cache.set(cache_key, items, ttl=settings.STAMMDATEN_CACHE_TTL_SECONDS)
+        return items
+
+    async def get_theoriestunde_vorlage(self, student_uuid: str) -> dict[str, Any]:
+        """Holt die vorausgefüllte Erfassungsvorlage für eine Theoriestunde."""
+        res = await self.request("GET", "v1/theoriestunden/vorlage", params={"fidkunde": student_uuid})
+        return res if isinstance(res, dict) else {}
+
+    async def create_theoriestunde(
+        self,
+        student_uuid: str,
+        student_name: str,
+        filiale_id: str,
+        filiale_name: str | None,
+        fahrlehrer_id: str,
+        fahrlehrer_name: str | None,
+        systemtheoriegruppe: str,
+        kapitel: str,
+        datum: str,
+        von: str,
+        bis: str,
+        minuten: int = 90,
+    ) -> dict[str, Any]:
+        """Erfasst / bucht eine Theoriestunde für einen Schüler in FSM Cloud."""
+        # Automatisch Fahrlehrername ergänzen falls leer
+        if not fahrlehrer_name:
+            all_fl = await self.get_fahrlehrer()
+            for fl in all_fl:
+                if str(fl.get("id")) == str(fahrlehrer_id):
+                    fahrlehrer_name = fl.get("voller_name") or fl.get("name") or "Fahrlehrer"
+                    break
+
+        # Automatisch Filialname ergänzen falls leer
+        if not filiale_name:
+            all_fil = await self.get_filialen()
+            for fil in all_fil:
+                if str(fil.get("id")) == str(filiale_id):
+                    filiale_name = fil.get("name") or "Filiale"
+                    break
+
+        payload = {
+            "viewModel": {
+                "fidKunde": student_uuid,
+                "kunde": student_name,
+                "fidfiliale": filiale_id,
+                "filiale": filiale_name or "Filiale",
+                "fidFahrlehrer": fahrlehrer_id,
+                "fahrlehrer": fahrlehrer_name or "Fahrlehrer",
+                "fidSystemtheoriegruppe": systemtheoriegruppe or "*",
+                "kapitel": kapitel,
+                "datum": _normalize_iso_datetime(datum),
+                "von": _normalize_iso_datetime(von),
+                "bis": _normalize_iso_datetime(bis),
+                "minuten": int(minuten),
+                "isErfassung": False,
+            }
+        }
+
+        res = await self.request("POST", "v1/theoriestunden", json_data=payload)
+
+        # Caches invalidieren (Schüler-Theorie, Ausbildungsstand und Karteikarte)
+        await cache.delete_prefix(f"schueler:theorie:{student_uuid}")
+        await cache.delete_prefix(f"schueler:ausbildung:{student_uuid}")
+        await cache.delete_prefix(f"schueler:kartei:{student_uuid}")
+        await cache.delete_prefix(f"fsm:theorie:{student_uuid}")
+        await cache.delete_prefix(f"fsm:ausbildung:{student_uuid}")
+        await cache.delete_prefix(f"fsm:schueler:kartei:{student_uuid}")
+
+        return res if isinstance(res, (dict, list)) else {"success": True, "result": res}
+
+    async def get_tagesbelegung(self, datum: dt.date | dt.datetime | str, fresh: bool = False) -> list[dict[str, Any]]:
+        """Liefert die Tagesbelegung aller Fahrlehrer für ein Datum."""
+        date_iso = str(datum)[:10]
+        cache_key = f"fsm:termine:tagesbelegung:{date_iso}"
+        if not fresh:
+            cached = await cache.get(cache_key)
+            if cached is not None and isinstance(cached, list):
+                return cached
+
+        res = await self.request("GET", "v1/termine/tagesbelegung", params={"datum": date_iso})
+        items: list[dict[str, Any]] = res if isinstance(res, list) else []
+        await cache.set(cache_key, items, ttl=settings.CACHE_TTL_SECONDS)
+        return items
+
 
 # Global FSM client singleton
 fsm_client = FSMClient()

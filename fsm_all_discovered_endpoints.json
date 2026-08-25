@@ -1,0 +1,17 @@
+{
+  "config": [
+    "/api/config",
+    "/api/config/antrag",
+    "/api/config/epayment",
+    "/api/config/maxi"
+  ],
+  "info": [
+    "/api/info"
+  ],
+  "negotiate": [
+    "/api/negotiate"
+  ],
+  "track": [
+    "/v2/track"
+  ]
+}

@@ -14,6 +14,7 @@ from app.core.config import settings
 from app.schemas.kalender import (
     KalenderEvent,
     KalenderResponse,
+    TagesbelegungResponse,
     TerminActionResponse,
     TerminCreateRequest,
     TerminCreateResponse,
@@ -349,3 +350,79 @@ async def delete_termin(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Terminlöschung fehlgeschlagen: {exc}",
         )
+
+
+@router.get(
+    "/termine/tagesbelegung",
+    response_model=TagesbelegungResponse,
+    summary="Tagesbelegung aller Fahrlehrer abrufen",
+    description="Liefert alle Termine aller Fahrlehrer für ein bestimmtes Tagesdatum.",
+)
+async def get_tagesbelegung(
+    request: Request,
+    response: Response,
+    datum: str | None = Query(default=None, description="Tagesdatum im Format YYYY-MM-DD (Standard: heute)"),
+    refresh: bool = Query(default=False, description="Cache überspringen"),
+) -> TagesbelegungResponse:
+    target_date = _normalize_date_str(datum, dt.date.today())
+    force_refresh = refresh or request.headers.get("x-refresh-cache") == "1"
+    cache_key = f"kalender:tagesbelegung:{target_date}"
+
+    if not force_refresh:
+        cached_res = await cache.get(cache_key)
+        if cached_res is not None:
+            response.headers["X-Cache-Hit"] = "1"
+            return cached_res
+
+    try:
+        raw_list = await fsm_client.get_tagesbelegung(datum=target_date, fresh=force_refresh)
+        events: list[KalenderEvent] = []
+        for r in raw_list:
+            if not isinstance(r, dict):
+                continue
+            tid = str(r.get("id") or "")
+            if not tid:
+                continue
+            von_dt = _parse_iso_datetime(r.get("von") or r.get("start"))
+            bis_dt = _parse_iso_datetime(r.get("bis") or r.get("end"))
+            if not von_dt or not bis_dt:
+                continue
+            dauer = (bis_dt - von_dt).total_seconds() / 60.0
+
+            ta = str(r.get("terminart") or "PX").upper()
+            ist_fs = ta in ("FS", "FAHRSTUNDE") or bool(r.get("istFahrstunde", False))
+            ist_th = ta in ("TH", "THEORIE") or bool(r.get("istTheorie", False))
+            ist_block = ta in ("ST", "SPERRE", "URLAUB", "KRANK", "PAUSE") or bool(r.get("istBlocker", False))
+
+            events.append(
+                KalenderEvent(
+                    id=tid,
+                    von=von_dt,
+                    bis=bis_dt,
+                    fahrlehrer_id=str(r.get("fidFahrlehrer") or r.get("fahrlehrer_id") or ""),
+                    terminart=ta,
+                    titel=str(r.get("titel") or r.get("thema") or "Termin"),
+                    schueler_name=r.get("kunde") or r.get("schueler_name"),
+                    schueler_id=r.get("fidKunde") or r.get("schueler_id"),
+                    fahrzeug_id=r.get("fidFahrzeug") or r.get("fahrzeug_id"),
+                    gebucht=bool(r.get("gebucht", False)),
+                    ist_fahrstunde=ist_fs,
+                    ist_theorie=ist_th,
+                    ist_blocker=ist_block,
+                    dauer_minuten=dauer,
+                )
+            )
+
+        result = TagesbelegungResponse(datum=target_date, count=len(events), termine=events)
+        await cache.set(cache_key, result, ttl=settings.CACHE_TTL_SECONDS)
+        response.headers["X-Cache-Hit"] = "0"
+        return result
+    except (FsmException, HTTPException):
+        raise
+    except Exception as exc:
+        logger.error("Fehler beim Abrufen der Tagesbelegung für %s: %s", target_date, exc)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Tagesbelegungs-Abruf fehlgeschlagen: {exc}",
+        )
+

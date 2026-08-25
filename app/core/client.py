@@ -472,12 +472,13 @@ class FSMClient:
 
         return status_info
 
-    async def get_fahrlehrer(self, only_active: bool = True) -> list[dict[str, Any]]:
+    async def get_fahrlehrer(self, only_active: bool = True, fresh: bool = False) -> list[dict[str, Any]]:
         """Retrieves list of instructors, caching active instructors."""
         cache_key = f"{CACHE_KEY_FAHRLEHRER}:{only_active}"
-        cached = await cache.get(cache_key)
-        if cached is not None and isinstance(cached, list):
-            return cached
+        if not fresh:
+            cached = await cache.get(cache_key)
+            if cached is not None and isinstance(cached, list):
+                return cached
 
         res = await self.request(
             "GET",
@@ -540,7 +541,9 @@ class FSMClient:
         gebucht: bool = False,
     ) -> list[str]:
         """Creates appointment/blocker. Automatically splits blocks exceeding 600 min."""
-        await cache.delete_prefix(f"fsm:kalender:{fahrlehrer_id}")
+        clean_fl_id = str(fahrlehrer_id).strip()
+        await cache.delete_prefix(f"fsm:kalender:{clean_fl_id}")
+        await cache.delete_prefix(f"kalender:{clean_fl_id}")
 
         leistungsart = leistungsart_id or settings.FSM_DEFAULT_LEISTUNGSART_ID
         duration_minutes = (bis - von).total_seconds() / 60.0
@@ -613,7 +616,9 @@ class FSMClient:
         gebucht: bool = False,
     ) -> bool:
         """Updates an existing calendar appointment in FSM."""
-        await cache.delete_prefix(f"fsm:kalender:{fahrlehrer_id}")
+        clean_fl_id = str(fahrlehrer_id).strip()
+        await cache.delete_prefix(f"fsm:kalender:{clean_fl_id}")
+        await cache.delete_prefix(f"kalender:{clean_fl_id}")
         leistungsart = leistungsart_id or settings.FSM_DEFAULT_LEISTUNGSART_ID
         payload = {
             "viewModel": {
@@ -635,6 +640,7 @@ class FSMClient:
     async def delete_termin(self, termin_id: str) -> bool:
         """Deletes an appointment from FSM by UUID."""
         await cache.delete_prefix("fsm:kalender:")
+        await cache.delete_prefix("kalender:")
         payload = {"viewModel": {"id": termin_id}}
         try:
             await self.request("DELETE", "v1/termine", json_data=payload)
@@ -771,9 +777,13 @@ class FSMClient:
         belegnummer: str | None = None,
     ) -> dict[str, Any]:
         """Records a payment (Gutschrift / Zahlung) for a student in FSM Cloud via v1/zahlungen."""
-        await cache.delete_prefix(f"fsm:schueler:{student_uuid}")
-        await cache.delete_prefix(f"fsm:leistungen:{student_uuid}")
-        await cache.delete_prefix(f"fsm:fahrstunden:{student_uuid}")
+        clean_sid = str(student_uuid).strip()
+        await cache.delete_prefix(f"fsm:schueler:{clean_sid}")
+        await cache.delete_prefix(f"schueler:details:{clean_sid}")
+        await cache.delete_prefix(f"fsm:leistungen:{clean_sid}")
+        await cache.delete_prefix(f"schueler:leistungen:{clean_sid}")
+        await cache.delete_prefix(f"fsm:fahrstunden:{clean_sid}")
+        await cache.delete_prefix(f"schueler:fahrstunden:{clean_sid}")
 
         datum_iso = _normalize_iso_datetime(datum)
 

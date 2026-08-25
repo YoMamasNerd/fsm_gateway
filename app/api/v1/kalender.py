@@ -9,7 +9,7 @@ from typing import Any
 from fastapi import APIRouter, HTTPException, Path, Query, Request, Response, status
 
 from app.core.cache import cache
-from app.core.client import FsmApiError, fsm_client
+from app.core.client import FsmException, fsm_client
 from app.core.config import settings
 from app.schemas.kalender import (
     KalenderEvent,
@@ -172,11 +172,12 @@ async def get_kalender(
     skip_deleted: bool = Query(default=True, description="Gelöschte Termine ausblenden"),
     refresh: bool = Query(default=False, description="Erzwingt Live-Abruf und aktualisiert den Cache"),
 ) -> KalenderResponse:
+    clean_fl_id = fahrlehrer_id.strip()
     # Deterministic date normalization (prevents microsecond cache misses)
     effective_start = _normalize_date_str(start or start_datum, dt.date.today())
     effective_end = _normalize_date_str(end or end_datum, dt.date.today() + dt.timedelta(days=7))
 
-    cache_key = f"kalender:{fahrlehrer_id}:{effective_start}:{effective_end}:{only_buchbar}:{skip_deleted}"
+    cache_key = f"kalender:{clean_fl_id}:{effective_start}:{effective_end}:{only_buchbar}:{skip_deleted}"
     force_refresh = refresh or request.headers.get("x-refresh-cache") == "1"
 
     if not force_refresh:
@@ -190,7 +191,7 @@ async def get_kalender(
                 asyncio.create_task(
                     _revalidate_calendar_in_background(
                         cache_key=cache_key,
-                        fahrlehrer_id=fahrlehrer_id,
+                        fahrlehrer_id=clean_fl_id,
                         effective_start=effective_start,
                         effective_end=effective_end,
                         only_buchbar=only_buchbar,
@@ -202,7 +203,7 @@ async def get_kalender(
 
     try:
         result = await _fetch_and_parse_calendar(
-            fahrlehrer_id=fahrlehrer_id,
+            fahrlehrer_id=clean_fl_id,
             effective_start=effective_start,
             effective_end=effective_end,
             only_buchbar=only_buchbar,
@@ -213,10 +214,10 @@ async def get_kalender(
         response.headers["X-Cache-Hit"] = "0"
         return result
 
-    except FsmApiError as exc:
-        raise HTTPException(status_code=exc.status_code, detail=str(exc))
+    except (FsmException, HTTPException):
+        raise
     except Exception as exc:
-        logger.error("Fehler beim Abrufen des Kalenders für %s: %s", fahrlehrer_id, exc)
+        logger.error("Fehler beim Abrufen des Kalenders für %s: %s", clean_fl_id, exc)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Kalender-Abruf fehlgeschlagen: {exc}",
@@ -237,9 +238,10 @@ async def create_termin(payload: TerminCreateRequest) -> TerminCreateResponse:
             detail="Das Enddatum ('bis') muss nach dem Startdatum ('von') liegen.",
         )
 
+    clean_fl_id = payload.fahrlehrer_id.strip()
     try:
         created_ids = await fsm_client.create_termin(
-            fahrlehrer_id=payload.fahrlehrer_id,
+            fahrlehrer_id=clean_fl_id,
             von=payload.von,
             bis=payload.bis,
             titel=payload.titel,
@@ -257,7 +259,8 @@ async def create_termin(payload: TerminCreateRequest) -> TerminCreateResponse:
             )
 
         # Invalidate calendar cache for this instructor immediately
-        await cache.delete_prefix(f"kalender:{payload.fahrlehrer_id}")
+        await cache.delete_prefix(f"kalender:{clean_fl_id}")
+        await cache.delete_prefix(f"fsm:kalender:{clean_fl_id}")
 
         return TerminCreateResponse(
             success=True,
@@ -265,8 +268,8 @@ async def create_termin(payload: TerminCreateRequest) -> TerminCreateResponse:
             count=len(created_ids),
         )
 
-    except FsmApiError as exc:
-        raise HTTPException(status_code=exc.status_code, detail=str(exc))
+    except (FsmException, HTTPException):
+        raise
     except Exception as exc:
         logger.error("Fehler beim Erstellen des Termins: %s", exc)
         raise HTTPException(
@@ -285,10 +288,12 @@ async def update_termin(
     termin_id: str = Path(..., description="FSM Termin UUID"),
     payload: TerminUpdateRequest = ...,
 ) -> TerminActionResponse:
+    clean_tid = termin_id.strip()
+    clean_fl_id = payload.fahrlehrer_id.strip() if payload.fahrlehrer_id else None
     try:
         success = await fsm_client.update_termin(
-            termin_id=termin_id,
-            fahrlehrer_id=payload.fahrlehrer_id,
+            termin_id=clean_tid,
+            fahrlehrer_id=clean_fl_id or "",
             von=payload.von,
             bis=payload.bis,
             titel=payload.titel,
@@ -300,16 +305,18 @@ async def update_termin(
         )
 
         # Invalidate calendar cache
-        if payload.fahrlehrer_id:
-            await cache.delete_prefix(f"kalender:{payload.fahrlehrer_id}")
+        if clean_fl_id:
+            await cache.delete_prefix(f"kalender:{clean_fl_id}")
+            await cache.delete_prefix(f"fsm:kalender:{clean_fl_id}")
         else:
             await cache.delete_prefix("kalender:")
+            await cache.delete_prefix("fsm:kalender:")
 
-        return TerminActionResponse(success=success, termin_id=termin_id)
-    except FsmApiError as exc:
-        raise HTTPException(status_code=exc.status_code, detail=str(exc))
+        return TerminActionResponse(success=success, termin_id=clean_tid)
+    except (FsmException, HTTPException):
+        raise
     except Exception as exc:
-        logger.error("Fehler beim Aktualisieren des Termins %s: %s", termin_id, exc)
+        logger.error("Fehler beim Aktualisieren des Termins %s: %s", clean_tid, exc)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Terminaktualisierung fehlgeschlagen: {exc}",
@@ -325,17 +332,19 @@ async def update_termin(
 async def delete_termin(
     termin_id: str = Path(..., description="FSM UUID des zu löschenden Termins"),
 ) -> TerminActionResponse:
+    clean_tid = termin_id.strip()
     try:
-        success = await fsm_client.delete_termin(termin_id=termin_id)
+        success = await fsm_client.delete_termin(termin_id=clean_tid)
 
         # Invalidate all calendar caches
         await cache.delete_prefix("kalender:")
+        await cache.delete_prefix("fsm:kalender:")
 
-        return TerminActionResponse(success=success, deleted_id=termin_id)
-    except FsmApiError as exc:
-        raise HTTPException(status_code=exc.status_code, detail=str(exc))
+        return TerminActionResponse(success=success, deleted_id=clean_tid)
+    except (FsmException, HTTPException):
+        raise
     except Exception as exc:
-        logger.error("Fehler beim Löschen des Termins %s: %s", termin_id, exc)
+        logger.error("Fehler beim Löschen des Termins %s: %s", clean_tid, exc)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Terminlöschung fehlgeschlagen: {exc}",

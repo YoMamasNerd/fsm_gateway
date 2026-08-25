@@ -4,10 +4,11 @@ from __future__ import annotations
 
 import logging
 from typing import Any
-from fastapi import APIRouter, HTTPException, Path, Query, status
+from fastapi import APIRouter, HTTPException, Path, Query, Request, Response, status
 
+from app.core.cache import cache
 from app.core.config import settings
-from app.core.client import FsmApiError, fsm_client
+from app.core.client import FsmException, fsm_client
 from app.schemas.schueler import (
     SchuelerDetails,
     SchuelerKurzItem,
@@ -79,7 +80,11 @@ def _extract_student_item(raw_row: dict[str, Any]) -> SchuelerKurzItem | None:
     summary="Schülersuche (POST)",
     description="Sucht Schüler anhand von Suchbegriff, Vorname, Nachname, Karteinummer, Status und Pagination.",
 )
-async def search_schueler_post(payload: SchuelerSucheRequest) -> SchuelerSucheResponse:
+async def search_schueler_post(
+    response: Response,
+    payload: SchuelerSucheRequest,
+) -> SchuelerSucheResponse:
+    response.headers["X-Cache-Hit"] = "0"
     try:
         raw_res = await fsm_client.search_schueler(
             query=payload.query,
@@ -101,8 +106,8 @@ async def search_schueler_post(payload: SchuelerSucheRequest) -> SchuelerSucheRe
                     schueler_items.append(item)
 
         return SchuelerSucheResponse(count=len(schueler_items), schueler=schueler_items)
-    except FsmApiError as exc:
-        raise HTTPException(status_code=exc.status_code, detail=str(exc))
+    except (FsmException, HTTPException):
+        raise
     except Exception as exc:
         logger.error("Fehler bei Schülersuche: %s", exc)
         raise HTTPException(
@@ -118,6 +123,7 @@ async def search_schueler_post(payload: SchuelerSucheRequest) -> SchuelerSucheRe
     description="Einfache Schülersuche via Query-Parameter (unterstützt Suchbegriff, Vorname, Nachname, Karteinummer).",
 )
 async def search_schueler_get(
+    response: Response,
     query: str | None = Query(default=None, description="Suchbegriff (Vorname, Nachname oder Volltext)"),
     q: str | None = Query(default=None, description="Kurzalias für Suchbegriff (?q=...)"),
     vorname: str | None = Query(default=None, description="Vorname"),
@@ -137,11 +143,7 @@ async def search_schueler_get(
         count=count,
         index=index,
     )
-    return await search_schueler_post(req)
-
-
-from app.core.cache import cache
-from fastapi import APIRouter, HTTPException, Path, Query, Request, Response, status
+    return await search_schueler_post(response=response, payload=req)
 
 
 @router.get(
@@ -156,7 +158,8 @@ async def get_schueler_details(
     student_uuid: str = Path(..., description="FSM Schüler-UUID"),
     refresh: bool = Query(default=False, description="Erzwingt Live-Abruf"),
 ) -> SchuelerDetails:
-    cache_key = f"schueler:details:{student_uuid}"
+    clean_uuid = student_uuid.strip()
+    cache_key = f"schueler:details:{clean_uuid}"
     force_refresh = refresh or request.headers.get("x-refresh-cache") == "1"
 
     if not force_refresh:
@@ -166,22 +169,21 @@ async def get_schueler_details(
             return cached_res
 
     try:
-        raw = await fsm_client.get_schueler_details(student_uuid=student_uuid)
+        raw = await fsm_client.get_schueler_details(student_uuid=clean_uuid, fresh=force_refresh)
         if not raw or not isinstance(raw, dict):
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"Schüler mit UUID '{student_uuid}' nicht gefunden.",
+                detail=f"Schüler mit UUID '{clean_uuid}' nicht gefunden.",
             )
 
         vorname = (raw.get("vorname") or "").strip()
         nachname = (raw.get("nachname") or "").strip()
         voller_name = f"{vorname} {nachname}".strip() or str(raw.get("name") or "Unbekannt")
 
-        saldo_val = raw.get("saldo")
-        saldo_float = float(saldo_val) if saldo_val is not None else None
+        saldo_float = _parse_german_number(raw.get("saldo"))
 
         result = SchuelerDetails(
-            id=student_uuid,
+            id=clean_uuid,
             vorname=vorname,
             nachname=nachname,
             voller_name=voller_name,
@@ -206,12 +208,10 @@ async def get_schueler_details(
         response.headers["X-Cache-Hit"] = "0"
         return result
 
-    except FsmApiError as exc:
-        raise HTTPException(status_code=exc.status_code, detail=str(exc))
-    except HTTPException:
+    except (FsmException, HTTPException):
         raise
     except Exception as exc:
-        logger.error("Fehler beim Abrufen der Schülerkartei %s: %s", student_uuid, exc)
+        logger.error("Fehler beim Abrufen der Schülerkartei %s: %s", clean_uuid, exc)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Schülerabruf fehlgeschlagen: {exc}",

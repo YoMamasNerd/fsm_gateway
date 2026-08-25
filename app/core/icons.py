@@ -21,11 +21,13 @@ _TOKEN_RE = re.compile(r"\{\{icon:([a-z0-9-]+)(?::([a-z0-9 _:-]+))?\}\}")
 
 
 def icon(name: str, cls: str = "") -> str:
-    """Renders a Lucide SVG icon inline; inherits currentColor."""
+    """Renders a Lucide SVG icon inline as a single line; inherits currentColor."""
     try:
         svg = _lucide._render_icon(name, None)
     except IconDoesNotExist:
         return ""
+    # Collapse to one line so the SVG is also safe inside <script> strings
+    svg = re.sub(r"\s+", " ", svg).strip()
     css = f"icon {cls}".strip()
     return svg.replace("<svg ", f'<svg class="{css}" ', 1)
 

@@ -9,12 +9,14 @@ from fastapi import APIRouter, HTTPException, Path, Query, Request, Response, st
 from app.core.cache import cache
 from app.core.config import settings
 from app.core.client import FsmException, fsm_client
+from app.schemas.ausbildung import AusbildungItem, AusbildungListResponse, KarteikarteResponse
 from app.schemas.schueler import (
     SchuelerDetails,
     SchuelerKurzItem,
     SchuelerSucheRequest,
     SchuelerSucheResponse,
 )
+from app.schemas.theorie import TheoriestundeItem, TheoriestundenResponse
 
 logger = logging.getLogger("fsm_gateway.api.schueler")
 router = APIRouter(prefix="/schueler", tags=["Schüler"])
@@ -215,4 +217,230 @@ async def get_schueler_details(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Schülerabruf fehlgeschlagen: {exc}",
+        )
+
+
+@router.get(
+    "/{student_uuid}/ausbildung",
+    response_model=AusbildungListResponse,
+    summary="Ausbildungsstand & Sonderfahrten-Zähler abrufen",
+    description="Liefert alle Ausbildungen/Klassen des Schülers inkl. Sonderfahrten-Zählern (Übungsfahrten, Überland, Autobahn, Nacht, Unterweisungen) und Prüfungsstatus.",
+)
+async def get_schueler_ausbildung(
+    request: Request,
+    response: Response,
+    student_uuid: str = Path(..., description="FSM Schüler-UUID"),
+    refresh: bool = Query(default=False, description="Erzwingt Live-Abruf"),
+) -> AusbildungListResponse:
+    clean_uuid = student_uuid.strip()
+    cache_key = f"schueler:ausbildung:{clean_uuid}"
+    force_refresh = refresh or request.headers.get("x-refresh-cache") == "1"
+
+    if not force_refresh:
+        cached_res = await cache.get(cache_key)
+        if cached_res is not None:
+            response.headers["X-Cache-Hit"] = "1"
+            return cached_res
+
+    try:
+        raw_list = await fsm_client.get_ausbildungen(student_uuid=clean_uuid, fresh=force_refresh)
+        items: list[AusbildungItem] = []
+        for r in raw_list:
+            if not isinstance(r, dict):
+                continue
+            ueb = _parse_german_number(r.get("uebungsfahrten")) or 0.0
+            uel = _parse_german_number(r.get("ueberlandfahrten")) or 0.0
+            ab = _parse_german_number(r.get("autobahnfahrten")) or 0.0
+            nf = _parse_german_number(r.get("nachtfahrten")) or 0.0
+            unt = _parse_german_number(r.get("unterweisungen")) or 0.0
+            sonst = _parse_german_number(r.get("sonstige_stunden")) or 0.0
+            gesamt = ueb + uel + ab + nf + unt + sonst
+
+            items.append(
+                AusbildungItem(
+                    id=str(r.get("id") or clean_uuid),
+                    fidklasse=r.get("fidklasse"),
+                    klasse_name=r.get("klasse") or r.get("klasse_name"),
+                    fidschueler=r.get("fidschueler") or clean_uuid,
+                    lfdnr=r.get("lfdnr") or 1,
+                    uebungsfahrten=ueb,
+                    ueberlandfahrten=uel,
+                    autobahnfahrten=ab,
+                    nachtfahrten=nf,
+                    unterweisungen=unt,
+                    sonstige_stunden=sonst,
+                    gesamt_fahrstunden=gesamt,
+                    theoriestunden=_parse_german_number(r.get("theoriestunden")) or 0.0,
+                    pflicht_theoriestunden=_parse_german_number(r.get("pflicht_theoriestunden")),
+                    theoriepruefungen=r.get("theoriepruefungen"),
+                    praxispruefungen=r.get("praxispruefungen"),
+                    datum_theoriepruefung=r.get("datum_theoriepruefung"),
+                    datum_praxispruefung=r.get("datum_praxispruefung"),
+                    fidergebnis_theorie=r.get("fidergebnis_theorie"),
+                    fidergebnis_praxis=r.get("fidergebnis_praxis"),
+                    bestanden_theorie=bool(r.get("bestanden_theorie", False) or str(r.get("fidergebnis_theorie") or "").lower() == "bestanden"),
+                    bestanden_praxis=bool(r.get("bestanden_praxis", False) or str(r.get("fidergebnis_praxis") or "").lower() == "bestanden"),
+                )
+            )
+
+        result = AusbildungListResponse(count=len(items), student_uuid=clean_uuid, ausbildungen=items)
+        await cache.set(cache_key, result, ttl=settings.AUSBILDUNG_CACHE_TTL_SECONDS)
+        response.headers["X-Cache-Hit"] = "0"
+        return result
+
+    except (FsmException, HTTPException):
+        raise
+    except Exception as exc:
+        logger.error("Fehler beim Abrufen der Ausbildung für %s: %s", clean_uuid, exc)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Ausbildungsabruf fehlgeschlagen: {exc}",
+        )
+
+
+@router.get(
+    "/{student_uuid}/kartei",
+    response_model=KarteikarteResponse,
+    summary="Digitale Karteikarte abrufen",
+    description="Liefert zugewiesene Fahrlehrer, Prüfauftrag / Rücklaufstatus vom TÜV/DEKRA und Prüfungssprache.",
+)
+async def get_schueler_karteikarte(
+    request: Request,
+    response: Response,
+    student_uuid: str = Path(..., description="FSM Schüler-UUID"),
+    refresh: bool = Query(default=False, description="Erzwingt Live-Abruf"),
+) -> KarteikarteResponse:
+    clean_uuid = student_uuid.strip()
+    cache_key = f"schueler:kartei:{clean_uuid}"
+    force_refresh = refresh or request.headers.get("x-refresh-cache") == "1"
+
+    if not force_refresh:
+        cached_res = await cache.get(cache_key)
+        if cached_res is not None:
+            response.headers["X-Cache-Hit"] = "1"
+            return cached_res
+
+    try:
+        raw = await fsm_client.get_karteikarte(student_uuid=clean_uuid, fresh=force_refresh)
+        ausb_raw = raw.get("ausbildungen", [])
+        ausb_items: list[AusbildungItem] = []
+        if isinstance(ausb_raw, list):
+            for r in ausb_raw:
+                if isinstance(r, dict):
+                    ueb = _parse_german_number(r.get("uebungsfahrten")) or 0.0
+                    uel = _parse_german_number(r.get("ueberlandfahrten")) or 0.0
+                    ab = _parse_german_number(r.get("autobahnfahrten")) or 0.0
+                    nf = _parse_german_number(r.get("nachtfahrten")) or 0.0
+                    unt = _parse_german_number(r.get("unterweisungen")) or 0.0
+                    sonst = _parse_german_number(r.get("sonstige_stunden")) or 0.0
+                    ausb_items.append(
+                        AusbildungItem(
+                            id=str(r.get("id") or clean_uuid),
+                            fidklasse=r.get("fidklasse"),
+                            klasse_name=r.get("klasse") or r.get("klasse_name"),
+                            fidschueler=r.get("fidschueler") or clean_uuid,
+                            lfdnr=r.get("lfdnr") or 1,
+                            uebungsfahrten=ueb,
+                            ueberlandfahrten=uel,
+                            autobahnfahrten=ab,
+                            nachtfahrten=nf,
+                            unterweisungen=unt,
+                            sonstige_stunden=sonst,
+                            gesamt_fahrstunden=ueb + uel + ab + nf + unt + sonst,
+                            theoriestunden=_parse_german_number(r.get("theoriestunden")) or 0.0,
+                            pflicht_theoriestunden=_parse_german_number(r.get("pflicht_theoriestunden")),
+                            theoriepruefungen=r.get("theoriepruefungen"),
+                            praxispruefungen=r.get("praxispruefungen"),
+                            datum_theoriepruefung=r.get("datum_theoriepruefung"),
+                            datum_praxispruefung=r.get("datum_praxispruefung"),
+                            fidergebnis_theorie=r.get("fidergebnis_theorie"),
+                            fidergebnis_praxis=r.get("fidergebnis_praxis"),
+                            bestanden_theorie=bool(r.get("bestanden_theorie", False)),
+                            bestanden_praxis=bool(r.get("bestanden_praxis", False)),
+                        )
+                    )
+
+        result = KarteikarteResponse(
+            student_uuid=clean_uuid,
+            fidFahrlehrer1=raw.get("fidFahrlehrer1"),
+            fahrlehrer1=raw.get("fahrlehrer1"),
+            fidFahrlehrer2=raw.get("fidFahrlehrer2"),
+            fahrlehrer2=raw.get("fahrlehrer2"),
+            pflichttheoriestunden=int(raw.get("pflichttheoriestunden") or 0),
+            theoriestunden=_parse_german_number(raw.get("theoriestunden")) or 0.0,
+            ruecklauf_datum=raw.get("ruecklauf_datum"),
+            ruecklaufnummer=raw.get("ruecklaufnummer"),
+            pruefungssprache=raw.get("fidsystempruefungssprache") or "DEU",
+            ausbildungen=ausb_items,
+        )
+
+        await cache.set(cache_key, result, ttl=settings.AUSBILDUNG_CACHE_TTL_SECONDS)
+        response.headers["X-Cache-Hit"] = "0"
+        return result
+
+    except (FsmException, HTTPException):
+        raise
+    except Exception as exc:
+        logger.error("Fehler beim Abrufen der Karteikarte für %s: %s", clean_uuid, exc)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Karteikartenabruf fehlgeschlagen: {exc}",
+        )
+
+
+@router.get(
+    "/{student_uuid}/theorie",
+    response_model=TheoriestundenResponse,
+    summary="Besuchte Theoriestunden abrufen",
+    description="Liefert alle vom Schüler besuchten Theoriestunden mit Datum, Thema/Kapitel und Lehrkraft.",
+)
+async def get_schueler_theorie(
+    request: Request,
+    response: Response,
+    student_uuid: str = Path(..., description="FSM Schüler-UUID"),
+    refresh: bool = Query(default=False, description="Erzwingt Live-Abruf"),
+) -> TheoriestundenResponse:
+    clean_uuid = student_uuid.strip()
+    cache_key = f"schueler:theorie:{clean_uuid}"
+    force_refresh = refresh or request.headers.get("x-refresh-cache") == "1"
+
+    if not force_refresh:
+        cached_res = await cache.get(cache_key)
+        if cached_res is not None:
+            response.headers["X-Cache-Hit"] = "1"
+            return cached_res
+
+    try:
+        raw_list = await fsm_client.get_theoriestunden(student_uuid=clean_uuid, fresh=force_refresh)
+        items: list[TheoriestundeItem] = []
+        for r in raw_list:
+            if not isinstance(r, dict):
+                continue
+            tid = str(r.get("id") or r.get("fidTheoriestunde") or "")
+            if not tid:
+                continue
+            items.append(
+                TheoriestundeItem(
+                    id=tid,
+                    datum=r.get("datum") or r.get("Datum"),
+                    thema=r.get("thema") or r.get("kapitel") or r.get("Thema"),
+                    lehrer_name=r.get("lehrer") or r.get("fahrlehrer_Name") or r.get("Lehrer"),
+                    filiale=r.get("filiale") or r.get("Filiale"),
+                    dauer_minuten=_parse_german_number(r.get("dauer") or r.get("dauer_minuten")) or 90.0,
+                    storno=bool(r.get("storno", False)),
+                )
+            )
+
+        result = TheoriestundenResponse(count=len(items), student_uuid=clean_uuid, theoriestunden=items)
+        await cache.set(cache_key, result, ttl=settings.THEORIE_CACHE_TTL_SECONDS)
+        response.headers["X-Cache-Hit"] = "0"
+        return result
+
+    except (FsmException, HTTPException):
+        raise
+    except Exception as exc:
+        logger.error("Fehler beim Abrufen der Theoriestunden für %s: %s", clean_uuid, exc)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Theorieabruf fehlgeschlagen: {exc}",
         )

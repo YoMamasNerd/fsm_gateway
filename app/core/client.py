@@ -902,6 +902,275 @@ class FSMClient:
             logger.error("Fehler beim Aktualisieren des Anmeldedatums für %s: %s", student_uuid, exc)
             return False
 
+    async def get_ausbildungen(self, student_uuid: str, fresh: bool = False) -> list[dict[str, Any]]:
+        """Liefert Ausbildungsstand & Sonderfahrten-Zähler für einen Schüler."""
+        cache_key = f"fsm:ausbildung:{student_uuid}"
+        if not fresh:
+            cached = await cache.get(cache_key)
+            if cached is not None and isinstance(cached, list):
+                return cached
+
+        res = await self.request("GET", f"v1/ausbildungen/kunde/{student_uuid}")
+        items: list[dict[str, Any]] = res if isinstance(res, list) else []
+        await cache.set(cache_key, items, ttl=settings.AUSBILDUNG_CACHE_TTL_SECONDS)
+        return items
+
+    async def get_karteikarte(self, student_uuid: str, fresh: bool = False) -> dict[str, Any]:
+        """Liefert die digitale Karteikarte (Fahrlehrer-Zuweisung, Prüfauftrag) für einen Schüler."""
+        cache_key = f"fsm:schueler:kartei:{student_uuid}"
+        if not fresh:
+            cached = await cache.get(cache_key)
+            if cached is not None and isinstance(cached, dict):
+                return cached
+
+        res = await self.request("GET", f"v1/schueler/kartei/{student_uuid}")
+        data: dict[str, Any] = res if isinstance(res, dict) else {}
+        await cache.set(cache_key, data, ttl=settings.AUSBILDUNG_CACHE_TTL_SECONDS)
+        return data
+
+    async def get_theoriestunden(self, student_uuid: str, fresh: bool = False) -> list[dict[str, Any]]:
+        """Liefert alle absolvierten Theoriestunden eines Schülers."""
+        cache_key = f"fsm:theorie:{student_uuid}"
+        if not fresh:
+            cached = await cache.get(cache_key)
+            if cached is not None and isinstance(cached, list):
+                return cached
+
+        res = await self.request("GET", f"v2/theoriestunden/kunde/{student_uuid}", params={"skipDeleted": "true", "pagination.pageSize": 100})
+        items: list[dict[str, Any]] = []
+        if isinstance(res, dict) and "rows" in res:
+            for row in res.get("rows", []):
+                d = row.get("data") or {}
+                if d:
+                    items.append(d)
+        elif isinstance(res, list):
+            items = res
+
+        await cache.set(cache_key, items, ttl=settings.THEORIE_CACHE_TTL_SECONDS)
+        return items
+
+    async def get_theoriekapitel(self, fresh: bool = False) -> list[dict[str, Any]]:
+        """Liefert den Katalog aller Theoriekapitel / Themen."""
+        cache_key = "fsm:theoriekapitel"
+        if not fresh:
+            cached = await cache.get(cache_key)
+            if cached is not None and isinstance(cached, list):
+                return cached
+
+        res = await self.request("GET", "v2/theoriekapitel")
+        items: list[dict[str, Any]] = []
+        if isinstance(res, dict) and "rows" in res:
+            for row in res.get("rows", []):
+                d = row.get("data") or {}
+                if d:
+                    items.append(d)
+        elif isinstance(res, list):
+            items = res
+
+        await cache.set(cache_key, items, ttl=settings.STAMMDATEN_CACHE_TTL_SECONDS)
+        return items
+
+    async def get_fahrzeuge(self, only_active: bool = True, fresh: bool = False) -> list[dict[str, Any]]:
+        """Liefert die Fahrzeugliste (Fuhrpark) der Fahrschule."""
+        cache_key = f"fsm:fahrzeuge:{only_active}"
+        if not fresh:
+            cached = await cache.get(cache_key)
+            if cached is not None and isinstance(cached, list):
+                return cached
+
+        res = await self.request("GET", "v1/fahrzeug", params={"onlyActive": "true" if only_active else "false"})
+        items: list[dict[str, Any]] = res if isinstance(res, list) else []
+        await cache.set(cache_key, items, ttl=settings.FUHRPARK_CACHE_TTL_SECONDS)
+        return items
+
+    async def get_filialen(self, fresh: bool = False) -> list[dict[str, Any]]:
+        """Liefert alle Filialen / Standorte der Fahrschule."""
+        cache_key = "fsm:filialen"
+        if not fresh:
+            cached = await cache.get(cache_key)
+            if cached is not None and isinstance(cached, list):
+                return cached
+
+        res = await self.request("GET", "v1/filialen")
+        items: list[dict[str, Any]] = res if isinstance(res, list) else []
+        await cache.set(cache_key, items, ttl=settings.STAMMDATEN_CACHE_TTL_SECONDS)
+        return items
+
+    async def get_klassen(self, fresh: bool = False) -> list[dict[str, Any]]:
+        """Liefert alle Führerscheinklassen der Fahrschule."""
+        cache_key = "fsm:klassen"
+        if not fresh:
+            cached = await cache.get(cache_key)
+            if cached is not None and isinstance(cached, list):
+                return cached
+
+        res = await self.request("GET", "v1/klassen")
+        items: list[dict[str, Any]] = res if isinstance(res, list) else []
+        await cache.set(cache_key, items, ttl=settings.STAMMDATEN_CACHE_TTL_SECONDS)
+        return items
+
+    async def get_leistungsarten(self, fresh: bool = False) -> list[dict[str, Any]]:
+        """Liefert den Katalog aller Leistungsarten / Preise."""
+        cache_key = "fsm:leistungsarten"
+        if not fresh:
+            cached = await cache.get(cache_key)
+            if cached is not None and isinstance(cached, list):
+                return cached
+
+        res = await self.request("GET", "v1/leistungen/leistungsarten")
+        items: list[dict[str, Any]] = res if isinstance(res, list) else []
+        await cache.set(cache_key, items, ttl=settings.STAMMDATEN_CACHE_TTL_SECONDS)
+        return items
+
+    async def get_treffpunkte(self, fresh: bool = False) -> list[dict[str, Any]]:
+        """Liefert alle hinterlegten Treffpunkte für Fahrstunden."""
+        cache_key = "fsm:treffpunkte"
+        if not fresh:
+            cached = await cache.get(cache_key)
+            if cached is not None and isinstance(cached, list):
+                return cached
+
+        res = await self.request("GET", "v2/treffpunkte")
+        items: list[dict[str, Any]] = []
+        if isinstance(res, dict) and "rows" in res:
+            for row in res.get("rows", []):
+                d = row.get("data") or {}
+                if d:
+                    items.append(d)
+        elif isinstance(res, list):
+            items = res
+
+        await cache.set(cache_key, items, ttl=settings.STAMMDATEN_CACHE_TTL_SECONDS)
+        return items
+
+    async def get_pruefungsstatistik(
+        self,
+        jahr: int = 2026,
+        zeitraum: int = 1,
+        quartal: int = 0,
+        fresh: bool = False,
+    ) -> list[dict[str, Any]]:
+        """Liefert Prüfungsstatistiken pro Fahrlehrer."""
+        cache_key = f"fsm:statistiken:pruefungen:lehrer:{jahr}:{zeitraum}:{quartal}"
+        if not fresh:
+            cached = await cache.get(cache_key)
+            if cached is not None and isinstance(cached, list):
+                return cached
+
+        res = await self.request(
+            "GET",
+            "v2/statistiken/pruefungen/lehrer",
+            params={"jahr": str(jahr), "zeitraum": str(zeitraum), "quartal": str(quartal)},
+        )
+        items: list[dict[str, Any]] = []
+        if isinstance(res, dict) and "rows" in res:
+            for row in res.get("rows", []):
+                data = row.get("data") or {}
+                vals = data.get("values") or {}
+                lehrer = vals.get("Lehrer", {}).get("value", "")
+                if lehrer:
+                    anm_str = str(vals.get("Praxis Anmeldungen", {}).get("value", "0"))
+                    best_str = str(vals.get("Praxis Bestanden", {}).get("value", "0"))
+                    quote_str = str(vals.get("Praxis Erfolgsquote", {}).get("value", "0%")).replace("%", "")
+                    try:
+                        anm = int(anm_str)
+                        best = int(best_str)
+                        quote = float(quote_str.replace(",", "."))
+                    except Exception:
+                        anm, best, quote = 0, 0, 0.0
+                    items.append({
+                        "name": lehrer,
+                        "anmeldungen": anm,
+                        "bestanden": best,
+                        "durchgefallen": max(0, anm - best),
+                        "erfolgsquote_pct": quote,
+                    })
+
+        await cache.set(cache_key, items, ttl=settings.STATISTIKEN_CACHE_TTL_SECONDS)
+        return items
+
+    async def get_pruefungsstatistik_klassen(
+        self,
+        jahr: int = 2026,
+        zeitraum: int = 1,
+        quartal: int = 0,
+        fresh: bool = False,
+    ) -> list[dict[str, Any]]:
+        """Liefert Prüfungsstatistiken pro Führerscheinklasse."""
+        cache_key = f"fsm:statistiken:pruefungen:klassen:{jahr}:{zeitraum}:{quartal}"
+        if not fresh:
+            cached = await cache.get(cache_key)
+            if cached is not None and isinstance(cached, list):
+                return cached
+
+        res = await self.request(
+            "GET",
+            "v2/statistiken/pruefungen/klassen",
+            params={"jahr": str(jahr), "zeitraum": str(zeitraum), "quartal": str(quartal)},
+        )
+        items: list[dict[str, Any]] = []
+        if isinstance(res, dict) and "rows" in res:
+            for row in res.get("rows", []):
+                data = row.get("data") or {}
+                vals = data.get("values") or {}
+                klasse = vals.get("Klasse", {}).get("value", "")
+                if klasse:
+                    anm_str = str(vals.get("Praxis Anmeldungen", {}).get("value", "0"))
+                    best_str = str(vals.get("Praxis Bestanden", {}).get("value", "0"))
+                    quote_str = str(vals.get("Praxis Erfolgsquote", {}).get("value", "0%")).replace("%", "")
+                    try:
+                        anm = int(anm_str)
+                        best = int(best_str)
+                        quote = float(quote_str.replace(",", "."))
+                    except Exception:
+                        anm, best, quote = 0, 0, 0.0
+                    items.append({
+                        "name": klasse,
+                        "anmeldungen": anm,
+                        "bestanden": best,
+                        "durchgefallen": max(0, anm - best),
+                        "erfolgsquote_pct": quote,
+                    })
+
+        await cache.set(cache_key, items, ttl=settings.STATISTIKEN_CACHE_TTL_SECONDS)
+        return items
+
+    async def get_kassenbuecher(self, fresh: bool = False) -> list[dict[str, Any]]:
+        """Liefert alle Kassenbücher."""
+        cache_key = "fsm:kassenbuecher"
+        if not fresh:
+            cached = await cache.get(cache_key)
+            if cached is not None and isinstance(cached, list):
+                return cached
+
+        res = await self.request("GET", "v1/kassenbuecher")
+        items: list[dict[str, Any]] = res if isinstance(res, list) else []
+        await cache.set(cache_key, items, ttl=settings.KASSENBUCH_CACHE_TTL_SECONDS)
+        return items
+
+    async def get_kassenbuchungen(
+        self,
+        kassenbuch_id: str,
+        jahr: int,
+        monat: int | None = None,
+        fresh: bool = False,
+    ) -> list[dict[str, Any]]:
+        """Liefert Kassenbuchungen eines Kassenbuchs."""
+        cache_key = f"fsm:kassenbuchungen:{kassenbuch_id}:{jahr}:{monat}"
+        if not fresh:
+            cached = await cache.get(cache_key)
+            if cached is not None and isinstance(cached, list):
+                return cached
+
+        params: dict[str, Any] = {"fidKassenbuch": kassenbuch_id, "jahr": str(jahr)}
+        if monat is not None:
+            params["monat"] = str(monat)
+
+        res = await self.request("GET", "v1/kassenbuecher/kassenbuchungen", params=params)
+        items: list[dict[str, Any]] = res if isinstance(res, list) else []
+        await cache.set(cache_key, items, ttl=settings.KASSENBUCH_CACHE_TTL_SECONDS)
+        return items
+
 
 # Global FSM client singleton
 fsm_client = FSMClient()

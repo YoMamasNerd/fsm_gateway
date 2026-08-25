@@ -55,8 +55,14 @@ CACHE_CATEGORY_LABELS: dict[str, str] = {
     "kalender": "Kalender / Termine",
     "fahrlehrer": "Fahrlehrer",
     "schueler": "Schülerdaten",
+    "ausbildung": "Ausbildungsstand",
+    "theorie": "Theorieausbildung",
     "fahrstunden": "Fahrstunden",
     "leistungen": "Leistungen",
+    "fuhrpark": "Fuhrpark & Fahrzeuge",
+    "stammdaten": "Stammdaten",
+    "statistiken": "Prüfungsstatistiken",
+    "kassenbuch": "Kassenbuch",
     "auth": "FSM Auth / Session",
     "webhooks": "Webhooks",
     "sonstige": "Sonstige",
@@ -70,6 +76,18 @@ def classify_cache_key(key: str) -> tuple[str, str]:
     """
     if key.startswith("kalender:") or key.startswith("fsm:kalender:"):
         return "kalender", CACHE_CATEGORY_LABELS["kalender"]
+    elif key.startswith("ausbildung:") or key.startswith("schueler:ausbildung:") or key.startswith("schueler:kartei:"):
+        return "ausbildung", CACHE_CATEGORY_LABELS["ausbildung"]
+    elif key.startswith("theorie:") or key.startswith("schueler:theorie:"):
+        return "theorie", CACHE_CATEGORY_LABELS["theorie"]
+    elif key.startswith("fuhrpark:") or key.startswith("fahrzeug:"):
+        return "fuhrpark", CACHE_CATEGORY_LABELS["fuhrpark"]
+    elif key.startswith("stammdaten:") or key.startswith("filialen:") or key.startswith("klassen:"):
+        return "stammdaten", CACHE_CATEGORY_LABELS["stammdaten"]
+    elif key.startswith("statistiken:") or key.startswith("pruefungen:"):
+        return "statistiken", CACHE_CATEGORY_LABELS["statistiken"]
+    elif key.startswith("kassenbuch:") or key.startswith("kassenbuecher:"):
+        return "kassenbuch", CACHE_CATEGORY_LABELS["kassenbuch"]
     elif (
         key.startswith("schueler:fahrstunden:")
         or key.startswith("fsm:fahrstunden:")

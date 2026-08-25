@@ -75,6 +75,30 @@ class Settings(BaseSettings):
         default=60,
         description="TTL in seconds for student services/balance cache (default: 1 minute / 60s)",
     )
+    AUSBILDUNG_CACHE_TTL_SECONDS: int = Field(
+        default=3600,
+        description="TTL in seconds for student training status/classes cache (default: 1 hour / 3600s)",
+    )
+    THEORIE_CACHE_TTL_SECONDS: int = Field(
+        default=3600,
+        description="TTL in seconds for theory lessons/chapters cache (default: 1 hour / 3600s)",
+    )
+    FUHRPARK_CACHE_TTL_SECONDS: int = Field(
+        default=43200,
+        description="TTL in seconds for fleet/vehicles cache (default: 12 hours / 43200s)",
+    )
+    STAMMDATEN_CACHE_TTL_SECONDS: int = Field(
+        default=86400,
+        description="TTL in seconds for branches/classes/services master data (default: 24 hours / 86400s)",
+    )
+    STATISTIKEN_CACHE_TTL_SECONDS: int = Field(
+        default=1800,
+        description="TTL in seconds for exam performance statistics cache (default: 30 minutes / 1800s)",
+    )
+    KASSENBUCH_CACHE_TTL_SECONDS: int = Field(
+        default=300,
+        description="TTL in seconds for cashbook data cache (default: 5 minutes / 300s)",
+    )
     HTTP_TIMEOUT: float = Field(
         default=20.0,
         description="Timeout for external HTTP requests in seconds",

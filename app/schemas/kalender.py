@@ -72,3 +72,12 @@ class TerminActionResponse(BaseModel):
     termin_id: str | None = Field(default=None, description="Updated or affected appointment ID")
     deleted_id: str | None = Field(default=None, description="Deleted appointment ID")
     message: str | None = Field(default=None, description="Informational message")
+
+
+class TagesbelegungResponse(BaseModel):
+    """Daily schedule across all instructors."""
+
+    datum: str = Field(..., description="Abfrage-Datum (YYYY-MM-DD)")
+    count: int = Field(..., description="Anzahl Termine")
+    termine: list[KalenderEvent] = Field(default_factory=list, description="Liste aller Termine des Tages")
+

@@ -271,3 +271,128 @@ async def test_kassenbuch_endpoints():
             data_b = res_b.json()
             assert data_b["count"] == 1
             assert data_b["buchungen"][0]["einnahme"] == 150.0
+
+
+@pytest.mark.asyncio
+async def test_preislisten_endpoints():
+    transport = ASGITransport(app=app, client=("172.18.0.5", 1234))
+    async with AsyncClient(transport=transport, base_url="http://test", headers=CLIENT_IP_HEADER) as client:
+        sample_pl = [{"id": "pl-1", "bezeichnung": "04/2026", "kennung": "000008", "schuelerpreisliste": False}]
+        sample_pos = [
+            {
+                "id": "pos-1",
+                "fidPreisliste": "pl-1",
+                "bezeichnung": "Übungsstunde Klasse B",
+                "betrag": 75.0,
+                "klasse": "B",
+                "theorie": False,
+                "praxis": True,
+            }
+        ]
+
+        with respx.mock(assert_all_called=True) as respx_mock:
+            respx_mock.get("https://api.fahrschulmanager.de/v1/preislisten").respond(
+                status_code=200, json=sample_pl
+            )
+            respx_mock.get("https://api.fahrschulmanager.de/v1/preislisten/preispositionen/pl-1").respond(
+                status_code=200, json=sample_pos
+            )
+            respx_mock.get("https://api.fahrschulmanager.de/v1/preislisten/schueler/stu-123").respond(
+                status_code=200, json=sample_pos
+            )
+
+            res_pl = await client.get("/v1/preislisten")
+            assert res_pl.status_code == 200
+            assert res_pl.json()["count"] == 1
+
+            res_pos = await client.get("/v1/preislisten/pl-1/positionen")
+            assert res_pos.status_code == 200
+            assert res_pos.json()["count"] == 1
+            assert res_pos.json()["preispositionen"][0]["betrag"] == 75.0
+
+            res_stu_pl = await client.get("/v1/schueler/stu-123/preise")
+            assert res_stu_pl.status_code == 200
+            assert res_stu_pl.json()["count"] == 1
+
+
+@pytest.mark.asyncio
+async def test_theoriestunde_creation_and_vorlage():
+    transport = ASGITransport(app=app, client=("172.18.0.5", 1234))
+    async with AsyncClient(transport=transport, base_url="http://test", headers=CLIENT_IP_HEADER) as client:
+        sample_vorlage = {
+            "fidKunde": "stu-123",
+            "kunde": "Felix Ackermann",
+            "fidfiliale": "fil-1",
+            "filiale": "Chemnitzer Str.",
+            "fidFahrlehrer": "fl-1",
+            "fahrlehrer": "Jonas Eisele",
+            "fidSystemtheoriegruppe": "*",
+            "von": "2026-08-25T18:00:00+02:00",
+            "bis": "2026-08-25T19:30:00+02:00",
+            "minuten": 90.0,
+            "datum": "2026-08-25T00:00:00+02:00",
+        }
+        sample_schueler = {"id": "stu-123", "vorname": "Felix", "nachname": "Ackermann"}
+        sample_created = {"id": "th-new-1", "fidKunde": "stu-123", "kapitel": "1 Persönliche Voraussetzungen"}
+
+        with respx.mock(assert_all_called=True) as respx_mock:
+            respx_mock.get("https://api.fahrschulmanager.de/v1/theoriestunden/vorlage?fidkunde=stu-123").respond(
+                status_code=200, json=sample_vorlage
+            )
+            respx_mock.get("https://api.fahrschulmanager.de/v1/schueler/kartei/stu-123").respond(
+                status_code=200, json=sample_schueler
+            )
+            respx_mock.post("https://api.fahrschulmanager.de/v1/theoriestunden").respond(
+                status_code=201, json={"viewModel": [sample_created]}
+            )
+
+            # 1. Test Vorlage
+            res_vorl = await client.get("/v1/schueler/stu-123/theorie/vorlage")
+            assert res_vorl.status_code == 200
+            assert res_vorl.json()["kunde"] == "Felix Ackermann"
+
+            # 2. Test Create Theoriestunde
+            payload = {
+                "fidfiliale": "fil-1",
+                "filiale": "Chemnitzer Str.",
+                "fidFahrlehrer": "fl-1",
+                "fahrlehrer": "Jonas Eisele",
+                "fidSystemtheoriegruppe": "*",
+                "kapitel": "1 Persönliche Voraussetzungen",
+                "datum": "2026-08-25T00:00:00",
+                "von": "2026-08-25T18:00:00",
+                "bis": "2026-08-25T19:30:00",
+                "minuten": 90,
+            }
+            res_create = await client.post("/v1/schueler/stu-123/theorie", json=payload)
+            assert res_create.status_code == 200
+            assert res_create.json()["success"] is True
+
+
+@pytest.mark.asyncio
+async def test_tagesbelegung_endpoint():
+    transport = ASGITransport(app=app, client=("172.18.0.5", 1234))
+    async with AsyncClient(transport=transport, base_url="http://test", headers=CLIENT_IP_HEADER) as client:
+        sample_belegung = [
+            {
+                "id": "t-1",
+                "von": "2026-08-25T08:00:00+02:00",
+                "bis": "2026-08-25T09:30:00+02:00",
+                "fidFahrlehrer": "fl-1",
+                "titel": "Fahrstunde Leopold",
+                "terminart": "FS",
+                "gebucht": True,
+            }
+        ]
+
+        with respx.mock(assert_all_called=True) as respx_mock:
+            respx_mock.get("https://api.fahrschulmanager.de/v1/termine/tagesbelegung?datum=2026-08-25").respond(
+                status_code=200, json=sample_belegung
+            )
+
+            res = await client.get("/v1/termine/tagesbelegung?datum=2026-08-25")
+            assert res.status_code == 200
+            data = res.json()
+            assert data["datum"] == "2026-08-25"
+            assert data["count"] == 1
+            assert data["termine"][0]["ist_fahrstunde"] is True

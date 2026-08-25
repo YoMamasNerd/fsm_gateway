@@ -16,7 +16,13 @@ from app.schemas.schueler import (
     SchuelerSucheRequest,
     SchuelerSucheResponse,
 )
-from app.schemas.theorie import TheoriestundeItem, TheoriestundenResponse
+from app.schemas.preislisten import PreispositionItem, PreispositionenResponse
+from app.schemas.theorie import (
+    TheoriestundeCreateRequest,
+    TheoriestundeItem,
+    TheoriestundenResponse,
+    TheoriestundeVorlageResponse,
+)
 
 logger = logging.getLogger("fsm_gateway.api.schueler")
 router = APIRouter(prefix="/schueler", tags=["Schüler"])
@@ -443,4 +449,147 @@ async def get_schueler_theorie(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Theorieabruf fehlgeschlagen: {exc}",
+        )
+
+
+@router.get(
+    "/{student_uuid}/theorie/vorlage",
+    response_model=TheoriestundeVorlageResponse,
+    summary="Vorlage zur Theorieunterricht-Erfassung abrufen",
+    description="Liefert die von FSM vorausgefüllte Erfassungsvorlage mit Schülername, Standard-Filiale und Fahrlehrer.",
+)
+async def get_theorie_vorlage(
+    response: Response,
+    student_uuid: str = Path(..., description="FSM Schüler-UUID"),
+) -> TheoriestundeVorlageResponse:
+    clean_uuid = student_uuid.strip()
+    try:
+        raw = await fsm_client.get_theoriestunde_vorlage(student_uuid=clean_uuid)
+        response.headers["X-Cache-Hit"] = "0"
+        return TheoriestundeVorlageResponse(
+            fidKunde=raw.get("fidKunde") or clean_uuid,
+            kunde=raw.get("kunde") or "Schüler",
+            fidfiliale=raw.get("fidfiliale"),
+            filiale=raw.get("filiale"),
+            fidFahrlehrer=raw.get("fidFahrlehrer"),
+            fahrlehrer=raw.get("fahrlehrer"),
+            fidSystemtheoriegruppe=raw.get("fidSystemtheoriegruppe") or "*",
+            von=raw.get("von"),
+            bis=raw.get("bis"),
+            minuten=float(raw.get("minuten") or 90.0),
+            datum=raw.get("datum"),
+        )
+    except (FsmException, HTTPException):
+        raise
+    except Exception as exc:
+        logger.error("Fehler beim Abrufen der Theorie-Vorlage für %s: %s", clean_uuid, exc)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Theorie-Vorlage fehlgeschlagen: {exc}",
+        )
+
+
+@router.post(
+    "/{student_uuid}/theorie",
+    summary="Theorieunterricht für Schüler eintragen / buchen",
+    description="Erfasst eine besuchte oder gebuchte Theoriestunde für einen Schüler in der FSM Cloud und invalidiert automatisch den Ausbildungs- und Theoriecache.",
+)
+async def create_schueler_theoriestunde(
+    payload: TheoriestundeCreateRequest,
+    student_uuid: str = Path(..., description="FSM Schüler-UUID"),
+) -> dict[str, Any]:
+    clean_uuid = student_uuid.strip()
+    try:
+        # Schülerdetails holen um den Namen sicherzustellen
+        details = await fsm_client.get_schueler_details(student_uuid=clean_uuid)
+        student_name = "Schüler"
+        if isinstance(details, dict):
+            vn = (details.get("vorname") or "").strip()
+            nn = (details.get("nachname") or "").strip()
+            student_name = f"{vn} {nn}".strip() or str(details.get("name") or "Schüler")
+
+        res = await fsm_client.create_theoriestunde(
+            student_uuid=clean_uuid,
+            student_name=student_name,
+            filiale_id=payload.fidfiliale,
+            filiale_name=payload.filiale,
+            fahrlehrer_id=payload.fidFahrlehrer,
+            fahrlehrer_name=payload.fahrlehrer,
+            systemtheoriegruppe=payload.fidSystemtheoriegruppe,
+            kapitel=payload.kapitel,
+            datum=payload.datum,
+            von=payload.von,
+            bis=payload.bis,
+            minuten=payload.minuten,
+        )
+        return {"success": True, "student_uuid": clean_uuid, "result": res}
+    except (FsmException, HTTPException):
+        raise
+    except Exception as exc:
+        logger.error("Fehler beim Erfassen der Theoriestunde für %s: %s", clean_uuid, exc)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Theorie-Erfassung fehlgeschlagen: {exc}",
+        )
+
+
+@router.get(
+    "/{student_uuid}/preise",
+    response_model=PreispositionenResponse,
+    summary="Schüler-Preisliste abrufen (Read-Only)",
+    description="Liefert alle für den Schüler hinterlegten Einzelpreise (Sonderpreise, Grundgebühr, Fahrstundenpreise).",
+)
+async def get_schueler_preise(
+    request: Request,
+    response: Response,
+    student_uuid: str = Path(..., description="FSM Schüler-UUID"),
+    refresh: bool = Query(default=False, description="Cache überspringen"),
+) -> PreispositionenResponse:
+    clean_uuid = student_uuid.strip()
+    force_refresh = refresh or request.headers.get("x-refresh-cache") == "1"
+    cache_key = f"schueler:preise:{clean_uuid}"
+
+    if not force_refresh:
+        cached_res = await cache.get(cache_key)
+        if cached_res is not None:
+            response.headers["X-Cache-Hit"] = "1"
+            return cached_res
+
+    try:
+        raw_list = await fsm_client.get_schueler_preisliste(student_uuid=clean_uuid, fresh=force_refresh)
+        items: list[PreispositionItem] = []
+        for r in raw_list:
+            if not isinstance(r, dict):
+                continue
+            pos_id = str(r.get("id") or "")
+            if not pos_id:
+                continue
+            betrag_val = r.get("betrag")
+            betrag_float = float(betrag_val) if isinstance(betrag_val, (int, float)) else 0.0
+
+            items.append(
+                PreispositionItem(
+                    id=pos_id,
+                    fidPreisliste=r.get("fidPreisliste"),
+                    bezeichnung=r.get("bezeichnung") or "Schülerpreis",
+                    betrag=betrag_float,
+                    klasse=r.get("klasse"),
+                    theorie=bool(r.get("theorie", False)),
+                    praxis=bool(r.get("praxis", False)),
+                    fidleistungsart=r.get("fidleistungsart"),
+                    artikel=r.get("artikel"),
+                )
+            )
+
+        result = PreispositionenResponse(count=len(items), preisliste_id=clean_uuid, preispositionen=items)
+        await cache.set(cache_key, result, ttl=settings.STAMMDATEN_CACHE_TTL_SECONDS)
+        response.headers["X-Cache-Hit"] = "0"
+        return result
+    except (FsmException, HTTPException):
+        raise
+    except Exception as exc:
+        logger.error("Fehler beim Abrufen der Preise für %s: %s", clean_uuid, exc)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Preise-Abruf fehlgeschlagen: {exc}",
         )

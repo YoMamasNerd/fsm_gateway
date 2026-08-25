@@ -1277,19 +1277,31 @@ class FSMClient:
 
         return res if isinstance(res, (dict, list)) else {"success": True, "result": res}
 
-    async def get_tagesbelegung(self, datum: dt.date | dt.datetime | str, fresh: bool = False) -> list[dict[str, Any]]:
-        """Liefert die Tagesbelegung aller Fahrlehrer für ein Datum."""
+    async def get_tagesbelegung(
+        self,
+        datum: dt.date | dt.datetime | str,
+        filiale_id: str | None = None,
+        fresh: bool = False,
+    ) -> dict[str, Any]:
+        """Liefert die Tagesbelegung (Auslastung Gesamt & Praxis) für ein Datum und eine Filiale."""
         date_iso = str(datum)[:10]
-        cache_key = f"fsm:termine:tagesbelegung:{date_iso}"
+        if not filiale_id:
+            filialen = await self.get_filialen()
+            if filialen:
+                filiale_id = str(filialen[0].get("id"))
+
+        cache_key = f"fsm:termine:tagesbelegung:{filiale_id}:{date_iso}"
         if not fresh:
             cached = await cache.get(cache_key)
-            if cached is not None and isinstance(cached, list):
+            if cached is not None and isinstance(cached, dict):
                 return cached
 
-        res = await self.request("GET", "v1/termine/tagesbelegung", params={"datum": date_iso})
-        items: list[dict[str, Any]] = res if isinstance(res, list) else []
-        await cache.set(cache_key, items, ttl=settings.CACHE_TTL_SECONDS)
-        return items
+        res = await self.request("GET", f"v1/termine/tagesbelegung/{filiale_id}", params={"date": f"{date_iso}T00:00:00.000Z"})
+        data: dict[str, Any] = res if isinstance(res, dict) else {}
+        data["datum"] = date_iso
+        data["filiale_id"] = filiale_id
+        await cache.set(cache_key, data, ttl=settings.CACHE_TTL_SECONDS)
+        return data
 
 
 # Global FSM client singleton

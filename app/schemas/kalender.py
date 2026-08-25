@@ -75,9 +75,11 @@ class TerminActionResponse(BaseModel):
 
 
 class TagesbelegungResponse(BaseModel):
-    """Daily schedule across all instructors."""
+    """Daily schedule workload across instructors."""
 
     datum: str = Field(..., description="Abfrage-Datum (YYYY-MM-DD)")
-    count: int = Field(..., description="Anzahl Termine")
-    termine: list[KalenderEvent] = Field(default_factory=list, description="Liste aller Termine des Tages")
+    filiale_id: str | None = Field(None, description="UUID der Filiale")
+    gesamt: int = Field(0, description="Gesamtzahl gebuchter Stunden/Einheiten")
+    praxis: int = Field(0, description="Anzahl Praxis-Fahrstunden")
+
 

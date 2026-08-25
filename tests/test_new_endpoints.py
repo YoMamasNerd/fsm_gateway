@@ -373,20 +373,14 @@ async def test_theoriestunde_creation_and_vorlage():
 async def test_tagesbelegung_endpoint():
     transport = ASGITransport(app=app, client=("172.18.0.5", 1234))
     async with AsyncClient(transport=transport, base_url="http://test", headers=CLIENT_IP_HEADER) as client:
-        sample_belegung = [
-            {
-                "id": "t-1",
-                "von": "2026-08-25T08:00:00+02:00",
-                "bis": "2026-08-25T09:30:00+02:00",
-                "fidFahrlehrer": "fl-1",
-                "titel": "Fahrstunde Leopold",
-                "terminart": "FS",
-                "gebucht": True,
-            }
-        ]
+        sample_belegung = {"gesamt": 14, "praxis": 10}
+        sample_filialen = [{"id": "fil-1", "name": "Chemnitzer Str."}]
 
         with respx.mock(assert_all_called=True) as respx_mock:
-            respx_mock.get("https://api.fahrschulmanager.de/v1/termine/tagesbelegung?datum=2026-08-25").respond(
+            respx_mock.get("https://api.fahrschulmanager.de/v1/filialen").respond(
+                status_code=200, json=sample_filialen
+            )
+            respx_mock.get("https://api.fahrschulmanager.de/v1/termine/tagesbelegung/fil-1?date=2026-08-25T00:00:00.000Z").respond(
                 status_code=200, json=sample_belegung
             )
 
@@ -394,5 +388,5 @@ async def test_tagesbelegung_endpoint():
             assert res.status_code == 200
             data = res.json()
             assert data["datum"] == "2026-08-25"
-            assert data["count"] == 1
-            assert data["termine"][0]["ist_fahrstunde"] is True
+            assert data["gesamt"] == 14
+            assert data["praxis"] == 10

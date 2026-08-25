@@ -1,0 +1,273 @@
+"""Tests for new domain endpoints: Ausbildung, Karteikarte, Theorie, Fuhrpark, Stammdaten, Statistiken, Kassenbuch."""
+
+import pytest
+import respx
+from httpx import ASGITransport, AsyncClient
+
+from app.core.cache import cache
+from app.core.client import fsm_client
+from app.main import app
+
+CLIENT_IP_HEADER = {"X-API-Key": "test-gateway-key"}
+
+
+@pytest.fixture(autouse=True)
+async def setup_test_token():
+    await cache.clear()
+    await fsm_client.set_auth_token("fake-jwt-token-123", ttl=3600)
+    yield
+    await cache.clear()
+
+
+@pytest.mark.asyncio
+async def test_schueler_ausbildung_endpoint():
+    transport = ASGITransport(app=app, client=("172.18.0.5", 1234))
+    async with AsyncClient(transport=transport, base_url="http://test", headers=CLIENT_IP_HEADER) as client:
+        sample_ausbildung = [
+            {
+                "id": "stu-123",
+                "fidklasse": "kl-b",
+                "klasse": "B",
+                "lfdnr": 1,
+                "uebungsfahrten": 12.0,
+                "ueberlandfahrten": 5.0,
+                "autobahnfahrten": 4.0,
+                "nachtfahrten": 3.0,
+                "unterweisungen": 1.0,
+                "theoriestunden": 14.0,
+                "pflicht_theoriestunden": 14.0,
+                "bestanden_theorie": True,
+            }
+        ]
+
+        with respx.mock(assert_all_called=True) as respx_mock:
+            respx_mock.get("https://api.fahrschulmanager.de/v1/ausbildungen/kunde/stu-123").respond(
+                status_code=200, json=sample_ausbildung
+            )
+
+            # 1. First call -> Cache Miss
+            res1 = await client.get("/v1/schueler/stu-123/ausbildung")
+            assert res1.status_code == 200
+            assert res1.headers.get("X-Cache-Hit") == "0"
+            data1 = res1.json()
+            assert data1["count"] == 1
+            assert data1["student_uuid"] == "stu-123"
+            assert data1["ausbildungen"][0]["ueberlandfahrten"] == 5.0
+            assert data1["ausbildungen"][0]["autobahnfahrten"] == 4.0
+            assert data1["ausbildungen"][0]["gesamt_fahrstunden"] == 25.0
+            assert data1["ausbildungen"][0]["bestanden_theorie"] is True
+
+        # 2. Second call -> Cache Hit (without calling FSM API)
+        res2 = await client.get("/v1/schueler/stu-123/ausbildung")
+        assert res2.status_code == 200
+        assert res2.headers.get("X-Cache-Hit") == "1"
+        assert res2.json()["count"] == 1
+
+
+@pytest.mark.asyncio
+async def test_schueler_karteikarte_endpoint():
+    transport = ASGITransport(app=app, client=("172.18.0.5", 1234))
+    async with AsyncClient(transport=transport, base_url="http://test", headers=CLIENT_IP_HEADER) as client:
+        sample_kartei = {
+            "fidFahrlehrer1": "fl-1",
+            "fahrlehrer1": "Marten Hampel",
+            "fidFahrlehrer2": None,
+            "fahrlehrer2": None,
+            "pflichttheoriestunden": 14,
+            "theoriestunden": 14.0,
+            "ruecklauf_datum": "2026-08-01T00:00:00",
+            "ruecklaufnummer": "DEKRA-998822",
+            "fidsystempruefungssprache": "DEU",
+            "ausbildungen": [],
+        }
+
+        with respx.mock(assert_all_called=True) as respx_mock:
+            respx_mock.get("https://api.fahrschulmanager.de/v1/schueler/kartei/stu-123").respond(
+                status_code=200, json=sample_kartei
+            )
+
+            res = await client.get("/v1/schueler/stu-123/kartei")
+            assert res.status_code == 200
+            data = res.json()
+            assert data["student_uuid"] == "stu-123"
+            assert data["fahrlehrer1"] == "Marten Hampel"
+            assert data["ruecklaufnummer"] == "DEKRA-998822"
+
+
+@pytest.mark.asyncio
+async def test_schueler_theorie_endpoint():
+    transport = ASGITransport(app=app, client=("172.18.0.5", 1234))
+    async with AsyncClient(transport=transport, base_url="http://test", headers=CLIENT_IP_HEADER) as client:
+        sample_theorie_table = {
+            "tableId": "TheoriestundenTable",
+            "rows": [
+                {
+                    "data": {
+                        "id": "th-1",
+                        "datum": "2026-08-10T18:00:00",
+                        "thema": "4 Schaltstelle Fahrer",
+                        "lehrer": "Stefan Richter",
+                        "filiale": "Chemnitzer Str.",
+                        "dauer": 90.0,
+                    }
+                }
+            ],
+        }
+
+        with respx.mock(assert_all_called=True) as respx_mock:
+            respx_mock.get("https://api.fahrschulmanager.de/v2/theoriestunden/kunde/stu-123?skipDeleted=true&pagination.pageSize=100").respond(
+                status_code=200, json=sample_theorie_table
+            )
+
+            res = await client.get("/v1/schueler/stu-123/theorie")
+            assert res.status_code == 200
+            data = res.json()
+            assert data["count"] == 1
+            assert data["theoriestunden"][0]["thema"] == "4 Schaltstelle Fahrer"
+            assert data["theoriestunden"][0]["lehrer_name"] == "Stefan Richter"
+
+
+@pytest.mark.asyncio
+async def test_fuhrpark_endpoint():
+    transport = ASGITransport(app=app, client=("172.18.0.5", 1234))
+    async with AsyncClient(transport=transport, base_url="http://test", headers=CLIENT_IP_HEADER) as client:
+        sample_vehicles = [
+            {
+                "id": "fz-1",
+                "bezeichnung": "Cupra Leon",
+                "kennung": "019",
+                "kennzeichen": "B SW7187",
+                "automatik": True,
+                "simulator": False,
+                "aktiv": True,
+                "klassen": "B",
+                "fidFahrlehrer": ["fl-1"],
+            }
+        ]
+
+        with respx.mock(assert_all_called=True) as respx_mock:
+            respx_mock.get("https://api.fahrschulmanager.de/v1/fahrzeug?onlyActive=true").respond(
+                status_code=200, json=sample_vehicles
+            )
+
+            res = await client.get("/v1/fuhrpark")
+            assert res.status_code == 200
+            data = res.json()
+            assert data["count"] == 1
+            assert data["fahrzeuge"][0]["bezeichnung"] == "Cupra Leon"
+            assert data["fahrzeuge"][0]["automatik"] is True
+            assert data["fahrzeuge"][0]["kennzeichen"] == "B SW7187"
+
+
+@pytest.mark.asyncio
+async def test_stammdaten_endpoints():
+    transport = ASGITransport(app=app, client=("172.18.0.5", 1234))
+    async with AsyncClient(transport=transport, base_url="http://test", headers=CLIENT_IP_HEADER) as client:
+        # 1. Filialen
+        sample_filialen = [{"id": "fil-1", "name": "Chemnitzer Str.", "kennung": "HS", "plz": "12621", "ort": "Berlin"}]
+        # 2. Klassen
+        sample_klassen = [{"id": "kl-1", "bezeichnung": "B", "kuerzel": "B", "fahrzeugart": "PKW"}]
+        # 3. Leistungsarten
+        sample_leistungen = [{"id": "la-1", "bezeichnung": "Übungsstunde", "kuerzel": "UEB", "preis": "65,00", "dauer": 45.0}]
+        # 4. Theoriekapitel
+        sample_kapitel = {"rows": [{"data": {"id": "tk-1", "bezeichnung": "4 Schaltstelle Fahrer"}}]}
+        # 5. Treffpunkte
+        sample_treffpunkte = {"rows": [{"data": {"id": "tp-1", "treffpunkt": "FS Schaltwerk", "ort": "Berlin"}}]}
+
+        with respx.mock(assert_all_called=True) as respx_mock:
+            respx_mock.get("https://api.fahrschulmanager.de/v1/filialen").respond(status_code=200, json=sample_filialen)
+            respx_mock.get("https://api.fahrschulmanager.de/v1/klassen").respond(status_code=200, json=sample_klassen)
+            respx_mock.get("https://api.fahrschulmanager.de/v1/leistungen/leistungsarten").respond(status_code=200, json=sample_leistungen)
+            respx_mock.get("https://api.fahrschulmanager.de/v2/theoriekapitel").respond(status_code=200, json=sample_kapitel)
+            respx_mock.get("https://api.fahrschulmanager.de/v2/treffpunkte").respond(status_code=200, json=sample_treffpunkte)
+
+            res_fil = await client.get("/v1/stammdaten/filialen")
+            assert res_fil.status_code == 200
+            assert res_fil.json()["count"] == 1
+
+            res_kl = await client.get("/v1/stammdaten/klassen")
+            assert res_kl.status_code == 200
+            assert res_kl.json()["count"] == 1
+
+            res_la = await client.get("/v1/stammdaten/leistungsarten")
+            assert res_la.status_code == 200
+            assert res_la.json()["leistungsarten"][0]["preis"] == 65.0
+
+            res_tk = await client.get("/v1/stammdaten/theoriekapitel")
+            assert res_tk.status_code == 200
+            assert res_tk.json()["count"] == 1
+
+            res_tp = await client.get("/v1/stammdaten/treffpunkte")
+            assert res_tp.status_code == 200
+            assert res_tp.json()["count"] == 1
+
+
+@pytest.mark.asyncio
+async def test_statistiken_endpoints():
+    transport = ASGITransport(app=app, client=("172.18.0.5", 1234))
+    async with AsyncClient(transport=transport, base_url="http://test", headers=CLIENT_IP_HEADER) as client:
+        sample_stat_table = {
+            "tableId": "StatistikPruefungenTable",
+            "rows": [
+                {
+                    "data": {
+                        "values": {
+                            "Lehrer": {"value": "Hampel Marten"},
+                            "Praxis Anmeldungen": {"value": "52"},
+                            "Praxis Bestanden": {"value": "37"},
+                            "Praxis Erfolgsquote": {"value": "71.15%"},
+                        }
+                    }
+                }
+            ],
+        }
+
+        with respx.mock(assert_all_called=True) as respx_mock:
+            respx_mock.get("https://api.fahrschulmanager.de/v2/statistiken/pruefungen/lehrer?jahr=2026&zeitraum=1&quartal=0").respond(
+                status_code=200, json=sample_stat_table
+            )
+
+            res = await client.get("/v1/statistiken/pruefungen/lehrer?jahr=2026&zeitraum=1")
+            assert res.status_code == 200
+            data = res.json()
+            assert data["count"] == 1
+            assert data["statistiken"][0]["name"] == "Hampel Marten"
+            assert data["statistiken"][0]["anmeldungen"] == 52
+            assert data["statistiken"][0]["bestanden"] == 37
+            assert data["statistiken"][0]["durchgefallen"] == 15
+            assert data["statistiken"][0]["erfolgsquote_pct"] == 71.15
+
+
+@pytest.mark.asyncio
+async def test_kassenbuch_endpoints():
+    transport = ASGITransport(app=app, client=("172.18.0.5", 1234))
+    async with AsyncClient(transport=transport, base_url="http://test", headers=CLIENT_IP_HEADER) as client:
+        sample_kassen = [{"id": "kb-1", "bezeichnung": "Hauptkasse Büro", "aktiv": True}]
+        sample_buchungen = [
+            {
+                "id": "b-1",
+                "datum": "2026-08-25T14:00:00",
+                "text": "Barzahlung Fahrschüler",
+                "einnahme": "150,00",
+                "ausgabe": "0,00",
+                "saldo": "150,00",
+            }
+        ]
+
+        with respx.mock(assert_all_called=True) as respx_mock:
+            respx_mock.get("https://api.fahrschulmanager.de/v1/kassenbuecher").respond(
+                status_code=200, json=sample_kassen
+            )
+            respx_mock.get("https://api.fahrschulmanager.de/v1/kassenbuecher/kassenbuchungen?fidKassenbuch=kb-1&jahr=2026").respond(
+                status_code=200, json=sample_buchungen
+            )
+
+            res_kb = await client.get("/v1/kassenbuecher")
+            assert res_kb.status_code == 200
+            assert res_kb.json()["count"] == 1
+
+            res_b = await client.get("/v1/kassenbuecher/kb-1/buchungen?jahr=2026")
+            assert res_b.status_code == 200
+            data_b = res_b.json()
+            assert data_b["count"] == 1
+            assert data_b["buchungen"][0]["einnahme"] == 150.0

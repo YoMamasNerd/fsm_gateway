@@ -28,8 +28,10 @@ def icon(name: str, cls: str = "") -> str:
         return ""
     # Collapse to one line so the SVG is also safe inside <script> strings
     svg = re.sub(r"\s+", " ", svg).strip()
-    css = f"icon {cls}".strip()
+    cls_clean = cls.replace(":", " ").strip()
+    css = f"icon {cls_clean}".strip()
     return svg.replace("<svg ", f'<svg class="{css}" ', 1)
+
 
 
 def substitute(html: str) -> str:

@@ -91,6 +91,7 @@ class FSMClient:
         self._client: httpx.AsyncClient | None = None
         self._auth_lock = asyncio.Lock()
         self._token_obtained_at: float | None = None
+        self._refresh_task: asyncio.Task[None] | None = None
 
     async def get_http_client(self) -> httpx.AsyncClient:
         """Returns the shared httpx.AsyncClient with connection limits and pooling."""
@@ -339,10 +340,38 @@ class FSMClient:
 
     async def _ensure_token(self) -> str:
         """Ensures a valid auth token is available, logging in if needed."""
-        token = await self.get_auth_token()
+        token = await self._maybe_proactive_refresh()
         if token:
             return token
         return await self.auto_login()
+
+    async def _maybe_proactive_refresh(self) -> str | None:
+        """Returns the current token and triggers a background re-login if it's aging out.
+
+        Proactively refreshes the token before it can expire mid-request. Returns the
+        still-valid old token immediately; the fresh token replaces it asynchronously.
+        Returns None if no token exists (fresh start -> reactive auto_login needed).
+        """
+        token = await self.get_auth_token()
+        if not token:
+            return None
+        if self._token_obtained_at is None:
+            return token  # Nach Restart unbekanntes Alter -> reaktiv lassen
+        age = dt.datetime.now(dt.timezone.utc).timestamp() - self._token_obtained_at
+        if age < settings.FSM_TOKEN_MAX_AGE_SECONDS:
+            return token
+        if self._refresh_task and not self._refresh_task.done():
+            return token  # Single-Flight: läuft bereits
+        self._refresh_task = asyncio.create_task(self._safe_proactive_relogin())
+        return token
+
+    async def _safe_proactive_relogin(self) -> None:
+        """Background re-login that never propagates exceptions to callers."""
+        try:
+            await self.auto_login()
+            logger.info("FSM: Proaktiver Token-Refresh abgeschlossen.")
+        except Exception as exc:
+            logger.warning("FSM: Proaktiver Token-Refresh fehlgeschlagen (reaktiver Pfad bleibt aktiv): %s", exc)
 
     async def _build_headers(self) -> tuple[dict[str, str], str]:
         """Builds default request headers with Bearer token and returns (headers, token)."""

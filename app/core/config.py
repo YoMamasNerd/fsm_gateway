@@ -31,6 +31,10 @@ class Settings(BaseSettings):
         default="",
         description="Optional static or pre-seeded Auth Bearer Token",
     )
+    FSM_TOKEN_MAX_AGE_SECONDS: int = Field(
+        default=41400,
+        description="Proactive re-login threshold for tokes older than this (default: 11.5h, 30 min before the 12h cache TTL)",
+    )
     FSM_DEFAULT_LEISTUNGSART_ID: str = Field(
         default="4330ec51-91b9-45f1-a3fb-88179db000ce",
         description="Standard Leistungsart-UUID for calendar blocks",

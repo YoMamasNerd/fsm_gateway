@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import datetime as dt
 import logging
 from contextlib import asynccontextmanager
 from typing import Any
@@ -198,12 +199,25 @@ async def root_redirect():
 async def healthcheck() -> dict[str, Any]:
     cache_items = await cache.size()
     token = await fsm_client.get_auth_token()
+    cache_total = metrics_collector.cache_hits_total + metrics_collector.cache_misses_total
     return {
         "status": "healthy",
         "service": "fsm_gateway",
         "cache_items": cache_items,
         "cache_backend": cache.get_info(),
         "has_token": bool(token),
+        "token_age_seconds": (
+            round(dt.datetime.now(dt.timezone.utc).timestamp() - fsm_client._token_obtained_at)
+            if fsm_client._token_obtained_at is not None
+            else None
+        ),
+        "cache_stats": {
+            "hits_total": metrics_collector.cache_hits_total,
+            "misses_total": metrics_collector.cache_misses_total,
+            "hit_ratio_pct": round(
+                metrics_collector.cache_hits_total / cache_total * 100, 1
+            ) if cache_total else 0.0,
+        },
     }
 
 

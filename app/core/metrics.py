@@ -26,6 +26,8 @@ class MetricsCollector:
         self._queue: asyncio.Queue[dict[str, Any]] = asyncio.Queue()
         self._worker_task: asyncio.Task[None] | None = None
         self._is_running = False
+        self.cache_hits_total = 0
+        self.cache_misses_total = 0
         self.init_db()
 
     def _get_tz(self) -> ZoneInfo:
@@ -99,6 +101,11 @@ class MetricsCollector:
             or path in ("/metrics", "/health", "/", "/favicon.ico", "/openapi.json", "/docs", "/redoc")
         ):
             return
+
+        if cached:
+            self.cache_hits_total += 1
+        else:
+            self.cache_misses_total += 1
 
         event = {
             "timestamp": time.time(),

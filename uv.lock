@@ -87,6 +87,7 @@ dependencies = [
     { name = "fastapi" },
     { name = "httpx" },
     { name = "jinja2" },
+    { name = "lucide" },
     { name = "pydantic" },
     { name = "pydantic-settings" },
     { name = "python-multipart" },
@@ -106,6 +107,7 @@ requires-dist = [
     { name = "fastapi", specifier = ">=0.110.0" },
     { name = "httpx", specifier = ">=0.27.0" },
     { name = "jinja2", specifier = ">=3.1.3" },
+    { name = "lucide", specifier = ">=1.1.4" },
     { name = "pydantic", specifier = ">=2.6.0" },
     { name = "pydantic-settings", specifier = ">=2.2.0" },
     { name = "pytest", marker = "extra == 'dev'", specifier = ">=8.0.0" },
@@ -218,6 +220,15 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/df/bf/f7da0350254c0ed7c72f3e33cef02e048281fec7ecec5f032d4aac52226b/jinja2-3.1.6.tar.gz", hash = "sha256:0137fb05990d35f1275a587e9aee6d56da821fc83491a0fb838183be43f66d6d", size = 245115, upload-time = "2025-03-05T20:05:02.478Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/62/a1/3d680cbfd5f4b8f15abc1d571870c5fc3e594bb582bc3b64ea099db13e56/jinja2-3.1.6-py3-none-any.whl", hash = "sha256:85ece4451f492d0c13c5dd7c13a64681a86afae63a5f347908daf103ce6d2f67", size = 134899, upload-time = "2025-03-05T20:05:00.369Z" },
+]
+
+[[package]]
+name = "lucide"
+version = "1.1.4"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/fd/47/ee3c40e705747a932b64f56b343464bf11111d758e945223755538be3d17/lucide-1.1.4.tar.gz", hash = "sha256:9386940c57a801d92d62a3805d3d584a9e6ca3a43d54765203d72acf8f4965d4", size = 445501, upload-time = "2026-07-09T13:45:48.377Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/ef/3d/a99fbb96be09f7cf6ed1b431c87350676dbb4924f01aa39a25848d7e0145/lucide-1.1.4-py3-none-any.whl", hash = "sha256:c2aa88a2bd7d99fcb56a9cdd4959cdf0c5ecd75f05d7ebbeb41010341639f449", size = 443438, upload-time = "2026-07-09T13:45:46.86Z" },
 ]
 
 [[package]]

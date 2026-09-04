@@ -4,10 +4,9 @@ from __future__ import annotations
 
 import asyncio
 import logging
-import os
 import sqlite3
 import time
-from datetime import datetime, timezone, timedelta
+from datetime import datetime
 from pathlib import Path
 from typing import Any
 from zoneinfo import ZoneInfo

@@ -2,13 +2,11 @@
 refresh bypass, payment invalidation, and edge cases discovered during the audit.
 """
 
-import datetime as dt
 import pytest
 import respx
 import httpx
 
 from app.core.cache import cache, classify_cache_key
-from app.core.client import fsm_client, FsmApiError
 
 
 @pytest.mark.asyncio

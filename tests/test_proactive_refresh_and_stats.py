@@ -10,7 +10,6 @@ from app.core.config import settings
 from app.core.metrics import MetricsCollector
 from app.main import app
 
-
 # ---------------------------------------------------------------------------
 # Feature 2: proaktiver Token-Refresh
 # ---------------------------------------------------------------------------

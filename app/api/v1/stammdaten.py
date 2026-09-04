@@ -5,6 +5,7 @@ from __future__ import annotations
 import logging
 import re
 from typing import Any
+
 from fastapi import APIRouter, HTTPException, Query, Request, Response, status
 
 from app.core.cache import cache
@@ -15,10 +16,10 @@ from app.schemas.stammdaten import (
     FilialenListResponse,
     KlasseItem,
     KlassenListResponse,
-    LeistungsartItem,
     LeistungsartenListResponse,
-    TreffpunktItem,
+    LeistungsartItem,
     TreffpunkteListResponse,
+    TreffpunktItem,
 )
 from app.schemas.theorie import TheoriekapitelItem, TheoriekapitelListResponse
 

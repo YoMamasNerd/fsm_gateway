@@ -1,8 +1,8 @@
 """Integration tests for all FSM Gateway API endpoints."""
 
+import httpx
 import pytest
 import respx
-import httpx
 
 
 @pytest.mark.asyncio
@@ -435,7 +435,7 @@ async def test_calendar_write_through_invalidation(async_client: httpx.AsyncClie
 @pytest.mark.asyncio
 async def test_unified_cache_operations():
     from app.core.cache import cache
-    
+
     # Test set & get
     await cache.set("test:valkey:1", {"msg": "hello", "count": 42}, ttl=60)
     val = await cache.get("test:valkey:1")

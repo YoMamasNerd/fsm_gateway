@@ -1,6 +1,7 @@
 """Driving instructors (Fahrlehrer) API endpoints."""
 
 import logging
+
 from fastapi import APIRouter, HTTPException, Query, Request, Response, status
 
 from app.core.cache import cache

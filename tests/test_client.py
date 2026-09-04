@@ -1,11 +1,12 @@
 """Unit tests for FSMClient."""
 
 import datetime as dt
+
+import httpx
 import pytest
 import respx
-import httpx
 
-from app.core.client import FSMClient, FsmApiError, FsmAuthError, FsmConfigError
+from app.core.client import FSMClient
 
 
 @pytest.mark.asyncio

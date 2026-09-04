@@ -11,7 +11,7 @@ import time
 from typing import Any
 
 import httpx
-from fastapi import APIRouter, Cookie, Depends, Header, HTTPException, Request, Response, status
+from fastapi import APIRouter, Cookie, Header, HTTPException, Request, Response, status
 from fastapi.responses import HTMLResponse, PlainTextResponse, RedirectResponse
 from pydantic import BaseModel
 
@@ -253,7 +253,7 @@ async def get_dashboard_stats(
     stats = metrics_collector.get_timeseries_stats(range)
     live = metrics_collector.get_live_stats()
     token = await fsm_client.get_auth_token()
-    
+
     # Enrich with FSM Cloud session state
     cloud_status = {
         "authenticated": bool(token),
@@ -449,7 +449,7 @@ def _render_login_html() -> str:
             const btn = document.getElementById('submitBtn');
             const alert = document.getElementById('errorAlert');
             const password = document.getElementById('password').value;
-            
+
             btn.disabled = true;
             alert.classList.add('d-none');
 
@@ -563,7 +563,7 @@ def _render_dashboard_html() -> str:
                     <span class="small text-secondary" id="cloudStatusBadge">FSM Cloud Verbunden</span>
                 </div>
             </div>
-            
+
             <div class="d-flex align-items-center gap-2">
                 <!-- Time Range Buttons -->
                 <div class="btn-group btn-group-sm rounded-pill p-1 bg-dark border border-secondary border-opacity-25" role="group">

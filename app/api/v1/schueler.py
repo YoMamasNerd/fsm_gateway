@@ -4,19 +4,20 @@ from __future__ import annotations
 
 import logging
 from typing import Any
+
 from fastapi import APIRouter, HTTPException, Path, Query, Request, Response, status
 
 from app.core.cache import cache
-from app.core.config import settings
 from app.core.client import FsmException, fsm_client
+from app.core.config import settings
 from app.schemas.ausbildung import AusbildungItem, AusbildungListResponse, KarteikarteResponse
+from app.schemas.preislisten import PreispositionenResponse, PreispositionItem
 from app.schemas.schueler import (
     SchuelerDetails,
     SchuelerKurzItem,
     SchuelerSucheRequest,
     SchuelerSucheResponse,
 )
-from app.schemas.preislisten import PreispositionItem, PreispositionenResponse
 from app.schemas.theorie import (
     TheoriestundeCreateRequest,
     TheoriestundeItem,
@@ -29,6 +30,7 @@ router = APIRouter(prefix="/schueler", tags=["Schüler"])
 
 
 import re
+
 
 def _parse_german_number(val: Any) -> float | None:
     """Safely convert int, float, or localized German numeric string to float."""

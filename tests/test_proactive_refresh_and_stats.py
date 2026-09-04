@@ -9,8 +9,6 @@ from app.core.client import FSMClient
 from app.core.config import settings
 from app.core.metrics import MetricsCollector
 from app.main import app
-from fastapi.testclient import TestClient
-
 
 # ---------------------------------------------------------------------------
 # Feature 2: proaktiver Token-Refresh
@@ -102,7 +100,6 @@ async def test_no_token_returns_none(fresh_client):
     # Auch den Cache-Leerzustand simulieren (get_auth_token liest sonst den Valkey/Memory-Cache)
     async def no_cache_token(key):
         return None
-    from app.core import cache as cache_mod
     from app.core.cache import cache
     original_get = cache.get
     cache.get = no_cache_token

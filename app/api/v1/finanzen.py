@@ -6,16 +6,17 @@ import datetime as dt
 import logging
 import re
 from typing import Any
+
 from fastapi import APIRouter, HTTPException, Path, Query, Request, Response, status
 
 from app.core.cache import cache
-from app.core.config import settings
 from app.core.client import FsmException, fsm_client
+from app.core.config import settings
 from app.schemas.finanzen import (
     FahrstundeItem,
     FahrstundenResponse,
-    LeistungItem,
     LeistungenResponse,
+    LeistungItem,
     ZahlungCreateRequest,
     ZahlungResponse,
 )
@@ -257,7 +258,7 @@ async def create_zahlung(
     booking_date = payload.datum or dt.date.today().isoformat()
 
     try:
-        res = await fsm_client.create_zahlung(
+        await fsm_client.create_zahlung(
             student_uuid=clean_uuid,
             betrag=payload.betrag,
             datum=booking_date,

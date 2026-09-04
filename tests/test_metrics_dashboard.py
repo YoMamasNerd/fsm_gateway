@@ -1,11 +1,11 @@
 """Tests for MetricsCollector, Dashboard UI, and Prometheus endpoint."""
 
 import pytest
-from httpx import AsyncClient, ASGITransport
+from httpx import ASGITransport, AsyncClient
 
-from app.main import app
 from app.core.config import settings
 from app.core.metrics import MetricsCollector
+from app.main import app
 
 
 @pytest.fixture
@@ -122,9 +122,10 @@ async def test_dashboard_auth_protection(monkeypatch):
 
 @pytest.mark.asyncio
 async def test_dashboard_sso_flow(monkeypatch):
-    import respx
-    import json
     import base64
+    import json
+
+    import respx
 
     monkeypatch.setattr(settings, "VOIDAUTH_CLIENT_ID", "test-client-id")
     monkeypatch.setattr(settings, "VOIDAUTH_CLIENT_SECRET", "test-client-secret")

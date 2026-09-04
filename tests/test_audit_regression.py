@@ -2,9 +2,9 @@
 refresh bypass, payment invalidation, and edge cases discovered during the audit.
 """
 
+import httpx
 import pytest
 import respx
-import httpx
 
 from app.core.cache import cache, classify_cache_key
 

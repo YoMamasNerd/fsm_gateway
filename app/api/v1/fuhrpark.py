@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+
 from fastapi import APIRouter, HTTPException, Query, Request, Response, status
 
 from app.core.cache import cache

@@ -165,7 +165,7 @@ class MetricsCollector:
 
             # Requests in last 60 seconds
             cursor.execute("""
-                SELECT 
+                SELECT
                     COUNT(*) as total_60s,
                     SUM(CASE WHEN cached = 1 THEN 1 ELSE 0 END) as cached_60s,
                     SUM(CASE WHEN status_code >= 400 THEN 1 ELSE 0 END) as errors_60s,
@@ -228,7 +228,7 @@ class MetricsCollector:
 
             # 1. Summary aggregations
             cursor.execute("""
-                SELECT 
+                SELECT
                     COUNT(*) as total,
                     SUM(CASE WHEN cached = 1 THEN 1 ELSE 0 END) as cache_hits,
                     SUM(CASE WHEN status_code >= 200 AND status_code < 400 THEN 1 ELSE 0 END) as successes,
@@ -267,7 +267,7 @@ class MetricsCollector:
                 })
 
             cursor.execute("""
-                SELECT 
+                SELECT
                     CAST((timestamp - ?) / ? AS INTEGER) as bucket_idx,
                     COUNT(*) as count,
                     SUM(CASE WHEN cached = 1 THEN 1 ELSE 0 END) as cache_count,
@@ -290,7 +290,7 @@ class MetricsCollector:
 
             # 3. Top Endpoints
             cursor.execute("""
-                SELECT 
+                SELECT
                     method,
                     path,
                     COUNT(*) as count,

@@ -1,6 +1,7 @@
 """Authentication API endpoints."""
 
 import logging
+
 from fastapi import APIRouter, HTTPException, Response, status
 
 from app.core.client import FsmAuthError, FsmConfigError, fsm_client

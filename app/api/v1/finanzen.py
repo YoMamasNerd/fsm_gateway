@@ -257,7 +257,7 @@ async def create_zahlung(
     booking_date = payload.datum or dt.date.today().isoformat()
 
     try:
-        res = await fsm_client.create_zahlung(
+        await fsm_client.create_zahlung(
             student_uuid=clean_uuid,
             betrag=payload.betrag,
             datum=booking_date,

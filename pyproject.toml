@@ -34,3 +34,8 @@ include = ["app*"]
 asyncio_mode = "auto"
 testpaths = ["tests"]
 python_files = ["test_*.py"]
+
+[tool.ruff]
+# E402: app/api/router.py importiert bewusst nach dem include_router – die
+# un-präfixierten Kompat-Routen sind erst nach der Definition verfügbar.
+lint.per-file-ignores = { "app/api/router.py" = ["E402"], "app/main.py" = ["E402"], "app/api/v1/schueler.py" = ["E402"] }

@@ -1,7 +1,6 @@
 """Tests for MetricsCollector, Dashboard UI, and Prometheus endpoint."""
 
 import pytest
-import time
 from httpx import AsyncClient, ASGITransport
 
 from app.main import app

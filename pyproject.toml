@@ -25,6 +25,7 @@ dev = [
     "pytest>=8.0.0",
     "pytest-asyncio>=0.23.0",
     "respx>=0.21.0",
+    "ruff>=0.6",
 ]
 
 [tool.setuptools.packages.find]
@@ -34,3 +35,19 @@ include = ["app*"]
 asyncio_mode = "auto"
 testpaths = ["tests"]
 python_files = ["test_*.py"]
+
+[tool.ruff]
+line-length = 110
+target-version = "py312"
+
+[tool.ruff.lint]
+# E501 bewusst nicht aktiv (~128 Langzeiler, v.a. Router-Docstrings/Endpoint-Defs).
+# Erst umbrechen, dann aktivieren.
+select = ["E4", "E7", "E9", "F", "I", "W"]
+
+[tool.ruff.lint.per-file-ignores]
+# Bewusste Spät-Imports: Kompat-Routen in router.py erst nach include_router,
+# Docs-Routen in main.py nach App-Erzeugung, re in schueler.py nach Schema-Import
+"app/api/router.py" = ["E402"]
+"app/main.py" = ["E402"]
+"app/api/v1/schueler.py" = ["E402"]

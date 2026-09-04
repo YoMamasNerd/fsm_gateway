@@ -9,6 +9,7 @@ main_router.include_router(api_v1_router)
 
 # Also expose un-prefixed routes for direct compatibility if needed
 # (e.g. /fahrlehrer -> /v1/fahrlehrer, /kalender -> /v1/kalender, etc.)
+from app.api.dashboard import router as dashboard_router
 from app.api.v1.auth import router as direct_auth
 from app.api.v1.fahrlehrer import router as direct_fahrlehrer
 from app.api.v1.finanzen import router as direct_finanzen
@@ -20,8 +21,6 @@ from app.api.v1.schueler import router as direct_schueler
 from app.api.v1.stammdaten import router as direct_stammdaten
 from app.api.v1.statistiken import router as direct_statistiken
 from app.api.v1.webhooks import router as direct_webhooks
-
-from app.api.dashboard import router as dashboard_router
 
 compat_router = APIRouter(include_in_schema=False)
 compat_router.include_router(direct_auth)

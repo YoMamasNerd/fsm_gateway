@@ -1,8 +1,8 @@
 """Pytest fixtures and test setup."""
 
+import httpx
 import pytest
 import pytest_asyncio
-import httpx
 
 from app.core.cache import cache
 from app.core.client import fsm_client

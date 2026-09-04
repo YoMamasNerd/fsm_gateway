@@ -5,8 +5,8 @@ from app.schemas.fahrlehrer import FahrlehrerItem, FahrlehrerListResponse
 from app.schemas.finanzen import (
     FahrstundeItem,
     FahrstundenResponse,
-    LeistungItem,
     LeistungenResponse,
+    LeistungItem,
     ZahlungCreateRequest,
     ZahlungResponse,
 )

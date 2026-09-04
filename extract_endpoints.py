@@ -1,7 +1,6 @@
-import httpx
 import re
-import json
-from collections import defaultdict
+
+import httpx
 
 url = 'https://portal.fahrschulmanager.de/main.8ec66026204cb9fa.js'
 print(f'Downloading {url}...')

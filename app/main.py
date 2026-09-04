@@ -5,16 +5,15 @@ from __future__ import annotations
 import asyncio
 import datetime as dt
 import logging
+import time
 from contextlib import asynccontextmanager
-from typing import Any
 from pathlib import Path
+from typing import Any
 
 from fastapi import Depends, FastAPI, Request, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse, RedirectResponse, Response
 from fastapi.staticfiles import StaticFiles
-
-import time
 
 from app.api.router import main_router
 from app.core.cache import cache
@@ -41,7 +40,7 @@ logger = logging.getLogger("fsm_gateway")
 async def lifespan(app: FastAPI):
     """Application lifespan: Startup & Shutdown events."""
     logger.info("🚀 FSM-Gateway gestartet auf Port %s (Target: %s)", settings.GATEWAY_PORT, settings.FSM_BASE_URL)
-    
+
     # Initialize cache backend (Valkey if configured, or memory fallback)
     await cache.init()
 
@@ -260,7 +259,7 @@ app.include_router(main_router)
 
 # Self-hosted docs routes (built-in ones disabled above) so that the
 # app-level API-key/network dependency applies to them too.
-from fastapi.openapi.docs import get_swagger_ui_html, get_redoc_html
+from fastapi.openapi.docs import get_redoc_html, get_swagger_ui_html
 
 
 @app.get("/openapi.json", include_in_schema=False, dependencies=[Depends(verify_gateway_api_key)])

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import datetime as dt
 import logging
+
 from fastapi import APIRouter, HTTPException, status
 
 from app.core.cache import cache

@@ -8,6 +8,7 @@ from app.api.v1.finanzen import router as finanzen_router
 from app.api.v1.fuhrpark import router as fuhrpark_router
 from app.api.v1.kalender import router as kalender_router
 from app.api.v1.kassenbuch import router as kassenbuch_router
+from app.api.v1.kurse import router as kurse_router
 from app.api.v1.preislisten import router as preislisten_router
 from app.api.v1.schueler import router as schueler_router
 from app.api.v1.stammdaten import router as stammdaten_router
@@ -18,6 +19,7 @@ api_v1_router = APIRouter(prefix="/v1")
 api_v1_router.include_router(auth_router)
 api_v1_router.include_router(fahrlehrer_router)
 api_v1_router.include_router(kalender_router)
+api_v1_router.include_router(kurse_router)
 api_v1_router.include_router(schueler_router)
 api_v1_router.include_router(finanzen_router)
 api_v1_router.include_router(fuhrpark_router)

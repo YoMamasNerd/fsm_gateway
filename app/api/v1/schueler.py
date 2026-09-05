@@ -531,6 +531,7 @@ async def create_schueler_theoriestunde(
             von=payload.von,
             bis=payload.bis,
             minuten=payload.minuten,
+            kurs_start_datum=payload.kurs_start_datum,
         )
         return {"success": True, "student_uuid": clean_uuid, "result": res}
     except (FsmException, HTTPException):

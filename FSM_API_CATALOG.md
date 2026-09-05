@@ -32,6 +32,7 @@ Dieses Dokument dient als zentrale Referenz für alle bekannten und erfassten Sc
 | **Ausbildungsstand** | `/v1/ausbildungen/kunde/{id}` | `GET` | `GET /v1/schueler/{id}/ausbildung`| ✅ Live (1h Cache) |
 | **Digitale Karteikarte**| `/v1/schueler/kartei/{id}` | `GET` | `GET /v1/schueler/{id}/kartei` | ✅ Live (1h Cache) |
 | **Theoriestunden** | `/v2/theoriestunden/kunde/{id}`| `GET` | `GET /v1/schueler/{id}/theorie` | ✅ Live (1h Cache) |
+| **Theoriestunde buchen** | `/v1/theoriestunden` | `POST` | `POST /v1/schueler/{id}/theorie` | ✅ Live (Write-Through, Anmeldedatum-Autokorrektur siehe unten) |
 | **Fahrstunden-Historie**| `/v2/fahrstunden/kunde/{id}` | `GET` | `GET /v1/schueler/{id}/fahrstunden`| ✅ Live (5m Cache) |
 | **Leistungen & Saldo**| `/v2/leistungen/{id}` | `GET` | `GET /v1/schueler/{id}/leistungen` | ✅ Live (1m Cache) |
 | **Zahlung einbuchen** | `/v1/zahlungen` | `POST` | `POST /v1/schueler/{id}/zahlungen` | ✅ Live (Write-Through) |
@@ -46,6 +47,28 @@ Dieses Dokument dient als zentrale Referenz für alle bekannten und erfassten Sc
 | **Kassenbücher** | `/v1/kassenbuecher` | `GET` | `GET /v1/kassenbuecher` | ✅ Live (5m Cache) |
 | **Kassenbuchungen** | `/v1/kassenbuecher/kassenbuchungen`| `GET` | `GET /v1/kassenbuecher/{id}/buchungen`| ✅ Live (5m Cache) |
 | **Webhooks** | `/v1/webhooks/sumup` (extern) | `POST` | `POST /v1/webhooks/sumup` | ✅ Live (Idempotenz) |
+
+---
+
+## 🩹 Selbstheilung: Anmeldedatum-Validierung
+
+**Fund (Live-Betrieb, 09/2026):** FSM lehnt sowohl Zahlungen (`POST /v1/zahlungen`) als
+auch Theoriestunden-Buchungen (`POST /v1/theoriestunden`) mit `400` ab, wenn deren
+Datum vor dem `anmeldedatum` des Schülers liegt - typischerweise weil ein Schüler
+erst nach Kursbeginn in FSM angelegt wurde, aber schon vorher am Unterricht
+teilgenommen hat. FSM selbst schlägt in der Fehlermeldung ein Korrekturdatum vor
+(z.B. *"Das Datum der Theoriestunde darf nicht vor dem Anmeldedatum des Schülers
+liegen. Soll das Anmeldedatum auf den 08.08.2026 geändert werden?"*).
+
+Beide Buchungspfade (`record_zahlung`, `create_theoriestunde` in `app/core/client.py`)
+fangen diesen `400`-Fehler ab, verlegen das Anmeldedatum per `PUT v1/schueler`
+automatisch vor und wiederholen die Buchung einmal:
+- Bei Zahlungen auf das Zahlungsdatum selbst.
+- Bei Theoriestunden auf das optionale `kurs_start_datum` im Request-Body (fällt
+  auf das Stundendatum zurück, falls nicht mitgeschickt) - der aufrufende Client
+  (z.B. `schalti_theorie`) sollte hier den ersten Kurstag übergeben, nicht das
+  Datum der einzelnen Lektion, damit spätere Lektionen desselben Schülers nicht
+  erneut denselben Fehler auslösen.
 
 ---
 

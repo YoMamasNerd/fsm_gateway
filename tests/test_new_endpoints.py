@@ -1,5 +1,8 @@
 """Tests for new domain endpoints: Ausbildung, Karteikarte, Theorie, Fuhrpark, Stammdaten, Statistiken, Kassenbuch."""
 
+import json
+
+import httpx
 import pytest
 import respx
 from httpx import ASGITransport, AsyncClient
@@ -402,6 +405,102 @@ async def test_theoriestunde_creation_and_vorlage():
             res_create = await client.post("/v1/schueler/stu-123/theorie", json=payload)
             assert res_create.status_code == 200
             assert res_create.json()["success"] is True
+
+
+@pytest.mark.asyncio
+async def test_theoriestunde_anmeldedatum_wird_automatisch_korrigiert_und_neu_gebucht():
+    """FSM lehnt Theoriestunden vor dem Anmeldedatum des Schülers ab (Live-Fund
+    09/2026: Schüler nach Kursbeginn in FSM angelegt). Der Gateway soll das
+    Anmeldedatum dann automatisch auf den ersten Kurstag vorverlegen und die
+    Buchung einmal wiederholen, statt den Fehler nur durchzureichen."""
+    transport = ASGITransport(app=app, client=("172.18.0.5", 1234))
+    async with AsyncClient(transport=transport, base_url="http://test", headers=CLIENT_IP_HEADER) as client:
+        sample_schueler = {"id": "stu-spaet", "vorname": "Neu", "nachname": "Angemeldet"}
+        sample_kartei = {"id": "stu-spaet", "anmeldedatum": "2026-08-20T00:00:00+02:00"}
+
+        with respx.mock(assert_all_called=True) as respx_mock:
+            respx_mock.get("https://api.fahrschulmanager.de/v1/schueler/kartei/stu-spaet").respond(
+                status_code=200, json=sample_schueler
+            )
+            respx_mock.post("https://api.fahrschulmanager.de/v1/theoriestunden").mock(
+                side_effect=[
+                    httpx.Response(
+                        400,
+                        json={
+                            "responses": [
+                                {
+                                    "errorMessage": (
+                                        "Das Datum der Theoriestunde darf nicht vor dem "
+                                        "Anmeldedatum des Schülers liegen.\n"
+                                        "Soll das Anmeldedatum auf den 01.08.2026 geändert werden?"
+                                    )
+                                }
+                            ]
+                        },
+                    ),
+                    httpx.Response(
+                        201, json={"viewModel": [{"id": "th-neu-1", "fidKunde": "stu-spaet"}]}
+                    ),
+                ]
+            )
+            respx_mock.get("https://api.fahrschulmanager.de/v1/preislisten/schueler/stu-spaet").respond(
+                status_code=200, json=[]
+            )
+            put_route = respx_mock.put("https://api.fahrschulmanager.de/v1/schueler").respond(
+                status_code=200, json={"viewModel": sample_kartei}
+            )
+
+            payload = {
+                "fidfiliale": "fil-1",
+                "filiale": "Chemnitzer Str.",
+                "fidFahrlehrer": "fl-1",
+                "fahrlehrer": "Jonas Eisele",
+                "fidSystemtheoriegruppe": "*",
+                "kapitel": "1 Persönliche Voraussetzungen",
+                "datum": "2026-08-01T00:00:00",
+                "von": "2026-08-01T18:00:00",
+                "bis": "2026-08-01T19:30:00",
+                "minuten": 90,
+                "kurs_start_datum": "2026-08-01",
+            }
+            res = await client.post("/v1/schueler/stu-spaet/theorie", json=payload)
+
+            assert res.status_code == 200
+            assert res.json()["success"] is True
+
+            # Anmeldedatum wurde auf den uebergebenen Kursstart (nicht das FSM-Vorschlagsdatum) gesetzt
+            sent_kartei = json.loads(put_route.calls.last.request.content)["viewModel"]
+            assert sent_kartei["anmeldedatum"].startswith("2026-08-01")
+
+
+@pytest.mark.asyncio
+async def test_theoriestunde_anderer_400_fehler_wird_nicht_verschluckt():
+    """Ein 400-Fehler, der nichts mit dem Anmeldedatum zu tun hat, darf nicht
+    stillschweigend als Anmeldedatum-Problem behandelt werden."""
+    transport = ASGITransport(app=app, client=("172.18.0.5", 1234))
+    async with AsyncClient(transport=transport, base_url="http://test", headers=CLIENT_IP_HEADER) as client:
+        with respx.mock(assert_all_called=True) as respx_mock:
+            respx_mock.get("https://api.fahrschulmanager.de/v1/schueler/kartei/stu-x").respond(
+                status_code=200, json={"id": "stu-x", "vorname": "Test", "nachname": "Fall"}
+            )
+            respx_mock.post("https://api.fahrschulmanager.de/v1/theoriestunden").respond(
+                status_code=400, json={"responses": [{"errorMessage": "Kapitel ist ein Pflichtfeld."}]}
+            )
+
+            payload = {
+                "fidfiliale": "fil-1",
+                "filiale": "Chemnitzer Str.",
+                "fidFahrlehrer": "fl-1",
+                "fahrlehrer": "Jonas Eisele",
+                "fidSystemtheoriegruppe": "*",
+                "kapitel": "",
+                "datum": "2026-08-01T00:00:00",
+                "von": "2026-08-01T18:00:00",
+                "bis": "2026-08-01T19:30:00",
+                "minuten": 90,
+            }
+            res = await client.post("/v1/schueler/stu-x/theorie", json=payload)
+            assert res.status_code >= 400
 
 
 @pytest.mark.asyncio

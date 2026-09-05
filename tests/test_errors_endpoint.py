@@ -139,3 +139,63 @@ async def test_validation_error_captured_automatically(async_client):
     assert "statistiken" in err_data["last_error"]["path"]
     assert err_data["last_error"]["error_type"] == "RequestValidationError"
     assert len(err_data["last_error"]["begruendung"]) > 0
+
+
+@pytest.mark.asyncio
+async def test_dashboard_errors_page_and_auth(async_client, monkeypatch):
+    """Verifies that /dashboard/errors is protected by login and provides full interactive features."""
+    from app.core.config import settings
+
+    monkeypatch.setattr(settings, "DASHBOARD_PASSWORD", "dashpass123")
+
+    # 1. Unauthenticated request to /dashboard/errors shows login form
+    res_unauth = await async_client.get("/dashboard/errors")
+    assert res_unauth.status_code == 200
+    assert "Admin Passwort" in res_unauth.text
+    assert "Authentifizierung für Dashboard erforderlich" in res_unauth.text
+
+    # 2. Unauthenticated call to /dashboard/api/errors returns 401
+    api_unauth = await async_client.get("/dashboard/api/errors")
+    assert api_unauth.status_code == 401
+
+    # 3. Perform login
+    login_res = await async_client.post("/dashboard/api/login", json={"password": "dashpass123"})
+    assert login_res.status_code == 200
+    auth_cookie = login_res.cookies["fsm_dash_auth"]
+    async_client.cookies.set("fsm_dash_auth", auth_cookie)
+
+    # 4. Authenticated request to /dashboard/errors renders the full error log page
+    res_auth = await async_client.get("/dashboard/errors")
+    assert res_auth.status_code == 200
+    assert "Fehlerprotokoll &amp; Begründungen" in res_auth.text or "Fehlerprotokoll & Begründungen" in res_auth.text
+    assert "Übersicht" in res_auth.text
+
+    # German alias /dashboard/fehler also works
+    res_alias = await async_client.get("/dashboard/fehler")
+    assert res_alias.status_code == 200
+
+    # 5. Record an error and verify /dashboard/api/errors returns it
+    metrics_collector.record_error(
+        method="POST",
+        path="/v1/kurse",
+        status_code=400,
+        error_type="FsmApiError",
+        message="Kurs konnte nicht erstellt werden: Ungültige Filiale",
+    )
+
+    api_auth = await async_client.get("/dashboard/api/errors")
+    assert api_auth.status_code == 200
+    api_data = api_auth.json()
+    assert api_data["has_errors"] is True
+    assert api_data["count"] == 1
+    assert api_data["errors"][0]["begruendung"] == "Kurs konnte nicht erstellt werden: Ungültige Filiale"
+
+    # 6. Clear errors via /dashboard/api/errors
+    del_res = await async_client.delete("/dashboard/api/errors")
+    assert del_res.status_code == 200
+    assert del_res.json()["success"] is True
+
+    # Check empty now
+    api_empty = await async_client.get("/dashboard/api/errors")
+    assert api_empty.json()["count"] == 0
+

@@ -77,8 +77,8 @@ Dieses Dokument dient als zentrale Referenz für alle bekannten und erfassten Sc
 * `POST /v1/kurse` &rarr; Kurs anlegen. Body: `{viewModel: {id: "00000000-0000-0000-0000-000000000000", kennung, bezeichnung, beginn, ende, uhrzeitVon, uhrzeitBis, maximalteilnehmer, ueberbuchungMoeglich, fahrschule123, buchbarBeiOnlineanmeldung, theoriegruppen: [...], filialen: [...], fidFiliale}}`. Antwort (201) liefert die generierte Kurs-UUID in `viewModel.id`. Verifiziert per Live-Traffic-Capture (fsm_live_monitor.py), jetzt auch im Gateway unter `POST /v1/kurse` verfügbar.
 * `DELETE /v1/kurse` &rarr; Kurs löschen. **Kein Pfad-Parameter** - UUID steht im Body: `{viewModel: {id: kurs_id}}`. Im Gateway als `DELETE /v1/kurse/{kurs_id}` gekapselt.
 * `GET /v1/kurse/anwesenheitsliste` &rarr; Digitale Anwesenheitsliste
-* `GET /v1/kursteilnehmer/{kurs_id}` &rarr; Teilnehmerliste eines Kurses
-* `POST /v1/kursteilnehmer` &rarr; Teilnehmer zu Kurs hinzufügen. Body: `{viewModel: {teilnehmer: [schueler_uuid, ...], kursId}}`. (Noch nicht im Gateway verdrahtet.)
+* `GET /v1/kursteilnehmer/{kurs_id}` &rarr; Teilnehmerliste eines Kurses (Antwort im generischen "Table"-Format der FSM-UI, noch nicht im Gateway normalisiert)
+* `POST /v1/kursteilnehmer` &rarr; Teilnehmer zu Kurs hinzufügen. Body: `{viewModel: {teilnehmer: [schueler_uuid, ...], kursId}}`, Antwort echot `{kursId, teilnehmer}` zurück. Im Gateway verfügbar als `POST /v1/kurse/{kurs_id}/teilnehmer`.
 
 ### 5. Online-Anmeldungen
 * `GET /v1/onlineanmeldung/{id}` &rarr; Eingehende Online-Anmeldung

@@ -101,3 +101,41 @@ async def test_delete_kurs_success(async_client: httpx.AsyncClient):
     # FSM's delete takes the id in the body, not the path
     sent_body = json.loads(delete_route.calls.last.request.content)
     assert sent_body["viewModel"]["id"] == kurs_id
+
+
+@pytest.mark.asyncio
+@respx.mock
+async def test_add_kursteilnehmer_success(async_client: httpx.AsyncClient):
+    kurs_id = "a65bc36b-9d3f-46f2-9ac1-44ecefc94162"
+    schueler_id = "f2473831-0523-47ef-be01-4501c3877239"
+
+    add_route = respx.post("https://api.fahrschulmanager.de/v1/kursteilnehmer").respond(
+        status_code=200,
+        json={
+            "viewModel": {"kursId": kurs_id, "teilnehmer": [schueler_id]},
+            "responses": [],
+            "location": None,
+        },
+    )
+
+    resp = await async_client.post(
+        f"/v1/kurse/{kurs_id}/teilnehmer", json={"schueler_ids": [schueler_id]}
+    )
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["success"] is True
+    assert data["kurs_id"] == kurs_id
+    assert data["schueler_ids"] == [schueler_id]
+    assert data["added_count"] == 1
+
+    sent_body = json.loads(add_route.calls.last.request.content)
+    assert sent_body["viewModel"]["kursId"] == kurs_id
+    assert sent_body["viewModel"]["teilnehmer"] == [schueler_id]
+
+
+@pytest.mark.asyncio
+async def test_add_kursteilnehmer_rejects_empty_list(async_client: httpx.AsyncClient):
+    resp = await async_client.post(
+        "/v1/kurse/a65bc36b-9d3f-46f2-9ac1-44ecefc94162/teilnehmer", json={"schueler_ids": []}
+    )
+    assert resp.status_code == 422

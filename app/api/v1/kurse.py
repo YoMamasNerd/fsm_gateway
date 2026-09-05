@@ -7,7 +7,13 @@ import logging
 from fastapi import APIRouter, HTTPException, Path, status
 
 from app.core.client import FsmException, fsm_client
-from app.schemas.kurse import KursActionResponse, KursCreateRequest, KursResponse
+from app.schemas.kurse import (
+    KursActionResponse,
+    KursCreateRequest,
+    KursResponse,
+    KursteilnehmerAddRequest,
+    KursteilnehmerAddResponse,
+)
 
 logger = logging.getLogger("fsm_gateway.api.kurse")
 router = APIRouter(tags=["Kurse"])
@@ -91,4 +97,35 @@ async def delete_kurs(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Kurslöschung fehlgeschlagen: {exc}",
+        )
+
+
+@router.post(
+    "/kurse/{kurs_id}/teilnehmer",
+    response_model=KursteilnehmerAddResponse,
+    summary="Kursteilnehmer hinzufügen",
+    description="Fügt einen oder mehrere Schüler zu einem bestehenden Kurs in FSM hinzu.",
+)
+async def add_kursteilnehmer(
+    payload: KursteilnehmerAddRequest,
+    kurs_id: str = Path(..., description="FSM UUID des Kurses"),
+) -> KursteilnehmerAddResponse:
+    clean_kurs_id = kurs_id.strip()
+    try:
+        added = await fsm_client.add_kursteilnehmer(
+            kurs_id=clean_kurs_id, schueler_ids=payload.schueler_ids
+        )
+        return KursteilnehmerAddResponse(
+            success=True,
+            kurs_id=clean_kurs_id,
+            schueler_ids=added,
+            added_count=len(added),
+        )
+    except (FsmException, HTTPException):
+        raise
+    except Exception as exc:
+        logger.error("Fehler beim Hinzufügen von Teilnehmern zu Kurs %s: %s", clean_kurs_id, exc)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Hinzufügen der Kursteilnehmer fehlgeschlagen: {exc}",
         )

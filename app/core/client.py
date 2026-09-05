@@ -728,6 +728,14 @@ class FSMClient:
         await self.request("DELETE", "v1/kurse", json_data=payload)
         return True
 
+    async def add_kursteilnehmer(self, kurs_id: str, schueler_ids: list[str]) -> list[str]:
+        """Adds one or more students to a course in FSM."""
+        payload = {"viewModel": {"teilnehmer": schueler_ids, "kursId": kurs_id}}
+        res = await self.request("POST", "v1/kursteilnehmer", json_data=payload)
+        vm = res.get("viewModel", {}) if isinstance(res, dict) else {}
+        added = vm.get("teilnehmer") if isinstance(vm, dict) else None
+        return [str(sid) for sid in added] if isinstance(added, list) else list(schueler_ids)
+
     async def search_schueler(
         self,
         query: str | None = None,

@@ -52,3 +52,20 @@ class KursActionResponse(BaseModel):
 
     success: bool = Field(default=True, description="Erfolgsstatus")
     deleted_id: str | None = Field(default=None, description="Gelöschte Kurs-UUID")
+
+
+class KursteilnehmerAddRequest(BaseModel):
+    """Payload to add one or more students to a course."""
+
+    schueler_ids: list[str] = Field(
+        ..., min_length=1, description="Liste der FSM Schüler-UUIDs, die dem Kurs hinzugefügt werden sollen"
+    )
+
+
+class KursteilnehmerAddResponse(BaseModel):
+    """Confirmation of students added to a course."""
+
+    success: bool = Field(default=True, description="Erfolgsstatus")
+    kurs_id: str = Field(..., description="FSM Kurs-UUID")
+    schueler_ids: list[str] = Field(default_factory=list, description="Tatsächlich hinzugefügte Schüler-UUIDs")
+    added_count: int = Field(default=0, description="Anzahl hinzugefügter Schüler")

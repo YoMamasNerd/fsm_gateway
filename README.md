@@ -31,6 +31,7 @@ Zentraler **FastAPI-Microservice** zur performanten und typisierten Anbindung de
 | `DELETE /v1/termine/{termin_id}` | `DELETE` | Löscht Termin aus FSM |
 | `POST /v1/kurse` | `POST` | Legt einen Kurs-Container (z.B. Theoriekurs) in FSM an |
 | `DELETE /v1/kurse/{kurs_id}` | `DELETE` | Löscht einen Kurs-Container aus FSM |
+| `POST /v1/kurse/{kurs_id}/teilnehmer` | `POST` | Fügt einen oder mehrere Schüler zu einem Kurs hinzu |
 | `POST /v1/schueler/suche` | `POST` | Schülersuche mit Pagination & Statusfiltern |
 | `GET /v1/schueler/{student_uuid}` | `GET` | Vollständige Schülerkartei, Kontaktdaten & Klassen |
 | `GET /v1/schueler/{student_uuid}/fahrstunden` | `GET` | Fahrstunden-Historie & Bezahlstatus |

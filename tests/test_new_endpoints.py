@@ -128,6 +128,41 @@ async def test_schueler_theorie_endpoint():
 
 
 @pytest.mark.asyncio
+async def test_schueler_theorie_endpoint_real_fsm_field_names():
+    """FSM's actual v2/theoriestunden/kunde/{id} response splits the teacher name into
+    fahrlehrerVorname/fahrlehrerNachname (verified via live traffic capture against a
+    real account) - not the 'lehrer' field the rest of this test suite mocks."""
+    transport = ASGITransport(app=app, client=("172.18.0.5", 1234))
+    async with AsyncClient(transport=transport, base_url="http://test", headers=CLIENT_IP_HEADER) as client:
+        sample_theorie_table = {
+            "tableId": "TheoriestundenTable",
+            "rows": [
+                {
+                    "data": {
+                        "id": "0d02cd87-3cc7-4f26-9092-914243c7d8c2",
+                        "datum": "2026-09-05T00:00:00+02:00",
+                        "kapitel": "1 Persönliche Voraussetzungen",
+                        "fahrlehrerVorname": "Jonas",
+                        "fahrlehrerNachname": "Eisele",
+                        "filiale": "Chemnitzer Str.213   12621 Bln",
+                        "minuten": 90.0,
+                    }
+                }
+            ],
+        }
+
+        with respx.mock(assert_all_called=True) as respx_mock:
+            respx_mock.get(
+                "https://api.fahrschulmanager.de/v2/theoriestunden/kunde/stu-real?skipDeleted=true&pagination.pageSize=100"
+            ).respond(status_code=200, json=sample_theorie_table)
+
+            res = await client.get("/v1/schueler/stu-real/theorie")
+            assert res.status_code == 200
+            data = res.json()
+            assert data["theoriestunden"][0]["lehrer_name"] == "Jonas Eisele"
+
+
+@pytest.mark.asyncio
 async def test_fuhrpark_endpoint():
     transport = ASGITransport(app=app, client=("172.18.0.5", 1234))
     async with AsyncClient(transport=transport, base_url="http://test", headers=CLIENT_IP_HEADER) as client:

@@ -377,7 +377,7 @@ async def test_theoriestunde_creation_and_vorlage():
             respx_mock.get("https://api.fahrschulmanager.de/v1/theoriestunden/vorlage?fidkunde=stu-123").respond(
                 status_code=200, json=sample_vorlage
             )
-            respx_mock.get("https://api.fahrschulmanager.de/v1/schueler/kartei/stu-123").respond(
+            respx_mock.get("https://api.fahrschulmanager.de/v1/schueler/stu-123").respond(
                 status_code=200, json=sample_schueler
             )
             respx_mock.post("https://api.fahrschulmanager.de/v1/theoriestunden").respond(
@@ -415,15 +415,18 @@ async def test_theoriestunde_anmeldedatum_wird_automatisch_korrigiert_und_neu_ge
     Buchung einmal wiederholen, statt den Fehler nur durchzureichen."""
     transport = ASGITransport(app=app, client=("172.18.0.5", 1234))
     async with AsyncClient(transport=transport, base_url="http://test", headers=CLIENT_IP_HEADER) as client:
-        sample_schueler = {"id": "stu-spaet", "vorname": "Neu", "nachname": "Angemeldet"}
         # Voller Datensatz von GET v1/schueler/{id} - nicht die schlankere
-        # v1/schueler/kartei/{id} - wird als Quelle fuer den PUT-Body gebraucht
-        # (Live-Fund: die schlankere Variante laesst FSMs PUT-Validierung scheitern).
+        # v1/schueler/kartei/{id} - wird sowohl fuer die Namensermittlung als
+        # auch als Quelle fuer den PUT-Body gebraucht (Live-Fund: die
+        # schlankere Kartei-Variante liefert weder vorhandeneKlassen noch die
+        # fuer FSMs PUT-Validierung noetigen Felder).
         sample_kundenpreise = [
             {"id": "stu-spaet", "fidkunde": "stu-spaet", "fidpreisliste": "pl-1", "lfdnr": 1}
         ]
         sample_voller_datensatz = {
             "id": "stu-spaet",
+            "vorname": "Neu",
+            "nachname": "Angemeldet",
             "anmeldedatum": "2026-08-20T00:00:00+02:00",
             "fidAbrechnungsart": 1,
             "bankverbindung": {"iban": None},
@@ -432,9 +435,6 @@ async def test_theoriestunde_anmeldedatum_wird_automatisch_korrigiert_und_neu_ge
         }
 
         with respx.mock(assert_all_called=True) as respx_mock:
-            respx_mock.get("https://api.fahrschulmanager.de/v1/schueler/kartei/stu-spaet").respond(
-                status_code=200, json=sample_schueler
-            )
             respx_mock.get("https://api.fahrschulmanager.de/v1/schueler/stu-spaet").respond(
                 status_code=200, json=sample_voller_datensatz
             )
@@ -499,7 +499,7 @@ async def test_theoriestunde_anderer_400_fehler_wird_nicht_verschluckt():
     transport = ASGITransport(app=app, client=("172.18.0.5", 1234))
     async with AsyncClient(transport=transport, base_url="http://test", headers=CLIENT_IP_HEADER) as client:
         with respx.mock(assert_all_called=True) as respx_mock:
-            respx_mock.get("https://api.fahrschulmanager.de/v1/schueler/kartei/stu-x").respond(
+            respx_mock.get("https://api.fahrschulmanager.de/v1/schueler/stu-x").respond(
                 status_code=200, json={"id": "stu-x", "vorname": "Test", "nachname": "Fall"}
             )
             respx_mock.post("https://api.fahrschulmanager.de/v1/theoriestunden").respond(

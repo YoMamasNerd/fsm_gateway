@@ -27,7 +27,7 @@ async def test_x_cache_hit_headers_all_endpoints(async_client: httpx.AsyncClient
         json=[{"id": "t-1", "von": "2026-08-25T10:00:00", "bis": "2026-08-25T11:00:00", "fidTerminart": "FS"}],
     )
     # Mock Schüler Details
-    respx.get(f"https://api.fahrschulmanager.de/v1/schueler/kartei/{student_id}").respond(
+    respx.get(f"https://api.fahrschulmanager.de/v1/schueler/{student_id}").respond(
         status_code=200,
         json={"id": student_id, "vorname": "Max", "nachname": "Mustermann", "saldo": "150,00"},
     )
@@ -147,7 +147,7 @@ async def test_double_caching_and_refresh_propagation(async_client: httpx.AsyncC
     assert fl_route.call_count == 2
 
     # Now test Schüler Details refresh propagation
-    stu_route = respx.get(f"https://api.fahrschulmanager.de/v1/schueler/kartei/{student_id}")
+    stu_route = respx.get(f"https://api.fahrschulmanager.de/v1/schueler/{student_id}")
     stu_route.side_effect = [
         httpx.Response(200, json={"id": student_id, "vorname": "Anna", "nachname": "Old"}),
         httpx.Response(200, json={"id": student_id, "vorname": "Anna", "nachname": "New"}),
@@ -282,7 +282,7 @@ async def test_fsm_network_timeout_error_handling(async_client: httpx.AsyncClien
 @respx.mock
 async def test_student_not_found_404(async_client: httpx.AsyncClient):
     """Verifies that non-existent student UUID returns HTTP 404."""
-    respx.get("https://api.fahrschulmanager.de/v1/schueler/kartei/non-existent-uuid").respond(
+    respx.get("https://api.fahrschulmanager.de/v1/schueler/non-existent-uuid").respond(
         status_code=200,
         json=None,
     )

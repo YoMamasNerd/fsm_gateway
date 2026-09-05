@@ -23,6 +23,12 @@ from app.schemas.schueler import (
     SchuelerSucheRequest,
     SchuelerSucheResponse,
 )
+from app.schemas.errors import (
+    ClearErrorsResponse,
+    ErrorEntry,
+    ErrorsResponse,
+    LastErrorResponse,
+)
 from app.schemas.webhooks import SumUpWebhookEvent, SumUpWebhookResponse
 
 __all__ = [

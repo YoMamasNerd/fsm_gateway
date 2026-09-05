@@ -93,6 +93,17 @@ gültige 1. Preisliste an"`, bei einem anderen wurde es augenscheinlich
 stillschweigend ignoriert (Datensatz blieb laut Nachprüfung intakt) - so oder
 so ist Überschreiben unnötig und riskant.
 
+**Dritte Falle - dieselbe Verwechslung nochmal, diesmal in `get_schueler_details`:**
+Der interne Client (`FSMClient.get_schueler_details`, hinter dem öffentlichen
+Endpunkt `GET /v1/schueler/{id}` UND innerhalb von `record_zahlung` und
+`create_theoriestunde` genutzt) rief bis 09/2026 ebenfalls die schlankere
+`v1/schueler/kartei/{id}` auf, obwohl der Endpunktname und die Docstring "volle
+Stammdaten" versprechen. Folge: jede Auswertung von `vorhandeneKlassen`
+(Mehrfach-FEK) über diesen Weg lieferte immer nur die eine bereits bekannte
+Klasse zurück, egal wie oft man es erneut versuchte - der Cache-Refresh half
+nicht, weil der zugrunde liegende Request von Anfang an die falsche Route traf.
+Jetzt korrekt auf `v1/schueler/{id}` umgestellt.
+
 ---
 
 ## 🔮 Zukünftige FSM-Routen (noch nicht im Gateway integriert)

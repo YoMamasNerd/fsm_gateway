@@ -81,6 +81,18 @@ Validierung des vollständigen Datensatzes). Live im echten FSM-Webportal
 nachgestellt: identischer PUT-Request, aber mit `GET v1/schueler/{id}` als Quelle,
 funktioniert (`200`).
 
+**Zweite Falle - `kundenpreise` nicht überschreiben:** `GET v1/preislisten/schueler/{id}`
+klingt nach "Preisliste des Schülers", liefert aber tatsächlich den **globalen
+Preislisten-Katalog** des ganzen Kontos (alle je angelegten Preislisten,
+Felder `bezeichnung`/`kennung`/...). Die echte Zuordnung des Schülers
+(`fidkunde`/`fidpreisliste`/`lfdnr`) steht schon im `kundenpreise`-Feld der
+`GET v1/schueler/{id}`-Antwort selbst - dieses Feld unverändert im PUT-Body
+mitschicken, niemals mit dem Katalog überschreiben. Live-Fund: bei einem
+Schüler quittierte FSM das überschriebene Feld mit `400 "Bitte geben Sie eine
+gültige 1. Preisliste an"`, bei einem anderen wurde es augenscheinlich
+stillschweigend ignoriert (Datensatz blieb laut Nachprüfung intakt) - so oder
+so ist Überschreiben unnötig und riskant.
+
 ---
 
 ## 🔮 Zukünftige FSM-Routen (noch nicht im Gateway integriert)

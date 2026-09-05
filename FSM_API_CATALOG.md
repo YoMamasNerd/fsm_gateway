@@ -70,6 +70,17 @@ automatisch vor und wiederholen die Buchung einmal:
   Datum der einzelnen Lektion, damit spätere Lektionen desselben Schülers nicht
   erneut denselben Fehler auslösen.
 
+**Falle beim Schreiben (Live-Fund via `fsm_live_monitor`, 09/2026):** Der PUT-Body
+für `update_schueler_anmeldedatum` muss von `GET v1/schueler/{id}` stammen, **nicht**
+von der schlankeren `GET v1/schueler/kartei/{id}` (die z.B. für Lesezugriffe wie
+`get_schueler_details` genutzt wird). Die Kartei-Variante lässt Felder wie
+`fidAbrechnungsart`, `bankverbindung` oder `skipDuplicateCheck` weg - fehlen die im
+PUT-Body, lehnt FSM mit einem irreführenden `500 "An error occurred during
+authorization"` ab (kein echtes Auth-Problem, sondern eine serverseitige
+Validierung des vollständigen Datensatzes). Live im echten FSM-Webportal
+nachgestellt: identischer PUT-Request, aber mit `GET v1/schueler/{id}` als Quelle,
+funktioniert (`200`).
+
 ---
 
 ## 🔮 Zukünftige FSM-Routen (noch nicht im Gateway integriert)

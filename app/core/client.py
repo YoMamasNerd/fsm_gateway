@@ -1061,9 +1061,17 @@ class FSMClient:
         student_uuid: str,
         new_anmeldedatum: dt.date | dt.datetime | str,
     ) -> bool:
-        """Updates a student's registration date (Anmeldedatum) in FSM Cloud via PUT v1/schueler."""
+        """Updates a student's registration date (Anmeldedatum) in FSM Cloud via PUT v1/schueler.
+
+        Muss den vollen Datensatz von GET v1/schueler/{id} laden (nicht die
+        schlankere v1/schueler/kartei/{id} - die fehlt z.B. fidAbrechnungsart,
+        bankverbindung, skipDuplicateCheck), sonst lehnt FSMs PUT den Request mit
+        einem generischen "An error occurred during authorization" ab (Live-Fund
+        via fsm_live_monitor, 09/2026: identischer Request aus dem echten FSM-
+        Webportal nutzt GET v1/schueler/{id} als Quelle für den PUT-Body).
+        """
         try:
-            kartei = await self.request("GET", f"v1/schueler/kartei/{student_uuid}")
+            kartei = await self.request("GET", f"v1/schueler/{student_uuid}")
             if not isinstance(kartei, dict):
                 return False
 

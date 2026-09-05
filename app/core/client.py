@@ -680,6 +680,54 @@ class FSMClient:
                 return True
             raise
 
+    async def create_kurs(
+        self,
+        kennung: str,
+        bezeichnung: str,
+        beginn: dt.datetime,
+        ende: dt.datetime,
+        uhrzeit_von: dt.datetime,
+        uhrzeit_bis: dt.datetime,
+        theoriegruppen: list[str] | None = None,
+        filiale_id: str | None = None,
+        maximalteilnehmer: int | None = None,
+        ueberbuchung_moeglich: bool = True,
+        buchbar_bei_onlineanmeldung: bool = True,
+        fahrschule123: bool = True,
+    ) -> dict[str, Any]:
+        """Creates a new course container (e.g. theory course) in FSM."""
+        fid_filiale = filiale_id or settings.FSM_DEFAULT_FILIALE_ID
+        payload = {
+            "viewModel": {
+                "id": "00000000-0000-0000-0000-000000000000",
+                "kennung": kennung,
+                "bezeichnung": bezeichnung,
+                "beginn": _normalize_iso_datetime(beginn),
+                "ende": _normalize_iso_datetime(ende),
+                "maximalteilnehmer": maximalteilnehmer,
+                "uhrzeitVon": _normalize_iso_datetime(uhrzeit_von),
+                "uhrzeitBis": _normalize_iso_datetime(uhrzeit_bis),
+                "ueberbuchungMoeglich": ueberbuchung_moeglich,
+                "fahrschule123": fahrschule123,
+                "buchbarBeiOnlineanmeldung": buchbar_bei_onlineanmeldung,
+                "theoriegruppen": theoriegruppen or ["*"],
+                "filialen": [fid_filiale],
+                "fidFiliale": fid_filiale,
+                "homepage": None,
+                "homepageVerdeckt": None,
+                "buchbarNachBeginn": None,
+            }
+        }
+        res = await self.request("POST", "v1/kurse", json_data=payload)
+        vm = res.get("viewModel", {}) if isinstance(res, dict) else {}
+        return vm if isinstance(vm, dict) else {}
+
+    async def delete_kurs(self, kurs_id: str) -> bool:
+        """Deletes a course container from FSM by UUID."""
+        payload = {"viewModel": {"id": kurs_id}}
+        await self.request("DELETE", "v1/kurse", json_data=payload)
+        return True
+
     async def search_schueler(
         self,
         query: str | None = None,

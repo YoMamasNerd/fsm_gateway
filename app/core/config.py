@@ -38,6 +38,10 @@ class Settings(BaseSettings):
         default="4330ec51-91b9-45f1-a3fb-88179db000ce",
         description="Standard Leistungsart-UUID for calendar blocks",
     )
+    FSM_DEFAULT_FILIALE_ID: str = Field(
+        default="1a8f1403-93ca-4127-962b-ab7c4c917154",
+        description="Standard Filialen-UUID für neu angelegte Kurse",
+    )
 
     # Gateway Server Settings
     GATEWAY_HOST: str = Field(default="0.0.0.0", description="Host to bind server")

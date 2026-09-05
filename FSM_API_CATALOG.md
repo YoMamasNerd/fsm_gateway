@@ -69,10 +69,16 @@ Dieses Dokument dient als zentrale Referenz für alle bekannten und erfassten Sc
 * `GET /v1/sms/kunde/{student_uuid}` &rarr; SMS-Historie
 * `GET /v1/sms/available` &rarr; Guthabenstand SMS
 
-### 4. Kurse (z.B. Erste Hilfe, ASF, FES)
+### 4. Kurse (z.B. Erste Hilfe, ASF, FES, Theoriekurse)
 * `GET /v1/kurse` &rarr; Liste aller Kurse
+* `GET /v2/kurse?active=true` &rarr; Liste aktiver Kurse (vom Web-Client verwendet)
+* `GET /v1/kurse/{kurs_id}` &rarr; Kursdetails
+* `GET /v1/kurse/{kurs_id}/termine` &rarr; Termine eines Kurses
+* `POST /v1/kurse` &rarr; Kurs anlegen. Body: `{viewModel: {id: "00000000-0000-0000-0000-000000000000", kennung, bezeichnung, beginn, ende, uhrzeitVon, uhrzeitBis, maximalteilnehmer, ueberbuchungMoeglich, fahrschule123, buchbarBeiOnlineanmeldung, theoriegruppen: [...], filialen: [...], fidFiliale}}`. Antwort (201) liefert die generierte Kurs-UUID in `viewModel.id`. Verifiziert per Live-Traffic-Capture (fsm_live_monitor.py), jetzt auch im Gateway unter `POST /v1/kurse` verfügbar.
+* `DELETE /v1/kurse` &rarr; Kurs löschen. **Kein Pfad-Parameter** - UUID steht im Body: `{viewModel: {id: kurs_id}}`. Im Gateway als `DELETE /v1/kurse/{kurs_id}` gekapselt.
 * `GET /v1/kurse/anwesenheitsliste` &rarr; Digitale Anwesenheitsliste
 * `GET /v1/kursteilnehmer/{kurs_id}` &rarr; Teilnehmerliste eines Kurses
+* `POST /v1/kursteilnehmer` &rarr; Teilnehmer zu Kurs hinzufügen. Body: `{viewModel: {teilnehmer: [schueler_uuid, ...], kursId}}`. (Noch nicht im Gateway verdrahtet.)
 
 ### 5. Online-Anmeldungen
 * `GET /v1/onlineanmeldung/{id}` &rarr; Eingehende Online-Anmeldung

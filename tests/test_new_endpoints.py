@@ -419,12 +419,16 @@ async def test_theoriestunde_anmeldedatum_wird_automatisch_korrigiert_und_neu_ge
         # Voller Datensatz von GET v1/schueler/{id} - nicht die schlankere
         # v1/schueler/kartei/{id} - wird als Quelle fuer den PUT-Body gebraucht
         # (Live-Fund: die schlankere Variante laesst FSMs PUT-Validierung scheitern).
+        sample_kundenpreise = [
+            {"id": "stu-spaet", "fidkunde": "stu-spaet", "fidpreisliste": "pl-1", "lfdnr": 1}
+        ]
         sample_voller_datensatz = {
             "id": "stu-spaet",
             "anmeldedatum": "2026-08-20T00:00:00+02:00",
             "fidAbrechnungsart": 1,
             "bankverbindung": {"iban": None},
             "skipDuplicateCheck": True,
+            "kundenpreise": sample_kundenpreise,
         }
 
         with respx.mock(assert_all_called=True) as respx_mock:
@@ -455,9 +459,6 @@ async def test_theoriestunde_anmeldedatum_wird_automatisch_korrigiert_und_neu_ge
                     ),
                 ]
             )
-            respx_mock.get("https://api.fahrschulmanager.de/v1/preislisten/schueler/stu-spaet").respond(
-                status_code=200, json=[]
-            )
             put_route = respx_mock.put("https://api.fahrschulmanager.de/v1/schueler").respond(
                 status_code=200, json={"viewModel": sample_voller_datensatz}
             )
@@ -483,6 +484,12 @@ async def test_theoriestunde_anmeldedatum_wird_automatisch_korrigiert_und_neu_ge
             # Anmeldedatum wurde auf den uebergebenen Kursstart (nicht das FSM-Vorschlagsdatum) gesetzt
             sent_kartei = json.loads(put_route.calls.last.request.content)["viewModel"]
             assert sent_kartei["anmeldedatum"].startswith("2026-08-01")
+
+            # kundenpreise wird unveraendert aus GET v1/schueler/{id} durchgereicht,
+            # NICHT aus GET v1/preislisten/schueler/{id} ueberschrieben (Live-Fund:
+            # das ist ein globaler Katalog, kein Schueler-Preis - Ueberschreiben
+            # liess FSMs PUT bei manchen Schuelern mit einem Preislisten-Fehler scheitern).
+            assert sent_kartei["kundenpreise"] == sample_kundenpreise
 
 
 @pytest.mark.asyncio

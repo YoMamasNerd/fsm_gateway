@@ -1069,15 +1069,18 @@ class FSMClient:
         einem generischen "An error occurred during authorization" ab (Live-Fund
         via fsm_live_monitor, 09/2026: identischer Request aus dem echten FSM-
         Webportal nutzt GET v1/schueler/{id} als Quelle für den PUT-Body).
+
+        `kundenpreise` wird bewusst NICHT neu geladen: GET v1/preislisten/schueler/{id}
+        liefert den globalen Preislisten-Katalog (alle Preislisten des Kontos),
+        nicht die Zuordnung des Schülers - das im Kartei-Objekt bereits vorhandene
+        `kundenpreise` (echte Zuordnung, z.B. `fidpreisliste`/`lfdnr`) unverändert
+        mitschicken. Live-Fund: Überschreiben mit dem Katalog ließ FSMs PUT bei
+        einem Schüler mit "Bitte geben Sie eine gültige 1. Preisliste an" scheitern.
         """
         try:
             kartei = await self.request("GET", f"v1/schueler/{student_uuid}")
             if not isinstance(kartei, dict):
                 return False
-
-            preise = await self.request("GET", f"v1/preislisten/schueler/{student_uuid}")
-            if isinstance(preise, list):
-                kartei["kundenpreise"] = preise
 
             date_iso = _normalize_iso_datetime(new_anmeldedatum)
             kartei["anmeldedatum"] = date_iso

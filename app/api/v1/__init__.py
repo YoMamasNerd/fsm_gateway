@@ -13,6 +13,7 @@ from app.api.v1.preislisten import router as preislisten_router
 from app.api.v1.schueler import router as schueler_router
 from app.api.v1.stammdaten import router as stammdaten_router
 from app.api.v1.statistiken import router as statistiken_router
+from app.api.v1.theorietermine import router as theorietermine_router
 from app.api.v1.webhooks import router as webhooks_router
 
 api_v1_router = APIRouter(prefix="/v1")
@@ -20,6 +21,7 @@ api_v1_router.include_router(auth_router)
 api_v1_router.include_router(fahrlehrer_router)
 api_v1_router.include_router(kalender_router)
 api_v1_router.include_router(kurse_router)
+api_v1_router.include_router(theorietermine_router)
 api_v1_router.include_router(schueler_router)
 api_v1_router.include_router(finanzen_router)
 api_v1_router.include_router(fuhrpark_router)

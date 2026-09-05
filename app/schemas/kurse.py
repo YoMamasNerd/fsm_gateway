@@ -47,6 +47,13 @@ class KursResponse(BaseModel):
     maximalteilnehmer: int | None = Field(default=None)
 
 
+class KursListResponse(BaseModel):
+    """List of FSM courses."""
+
+    count: int = Field(..., description="Anzahl Kurse")
+    kurse: list[KursResponse] = Field(default_factory=list, description="Liste der Kurse")
+
+
 class KursActionResponse(BaseModel):
     """Generic confirmation for course deletion."""
 
@@ -69,3 +76,20 @@ class KursteilnehmerAddResponse(BaseModel):
     kurs_id: str = Field(..., description="FSM Kurs-UUID")
     schueler_ids: list[str] = Field(default_factory=list, description="Tatsächlich hinzugefügte Schüler-UUIDs")
     added_count: int = Field(default=0, description="Anzahl hinzugefügter Schüler")
+
+
+class KursteilnehmerItem(BaseModel):
+    """One student enrolled in a course."""
+
+    id: str = Field(..., description="FSM Schüler-UUID")
+    vorname: str | None = Field(default=None)
+    nachname: str | None = Field(default=None)
+    klassen: list[str] = Field(default_factory=list, description="Führerscheinklassen des Schülers")
+
+
+class KursteilnehmerListResponse(BaseModel):
+    """List of students enrolled in a course."""
+
+    kurs_id: str = Field(..., description="FSM Kurs-UUID")
+    count: int = Field(..., description="Anzahl Teilnehmer")
+    teilnehmer: list[KursteilnehmerItem] = Field(default_factory=list)

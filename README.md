@@ -29,9 +29,16 @@ Zentraler **FastAPI-Microservice** zur performanten und typisierten Anbindung de
 | `POST /v1/termine` | `POST` | Erstellt Termin/Blocker in FSM (zerlegt > 600 Min.) |
 | `PUT /v1/termine/{termin_id}` | `PUT` | Aktualisiert Termin in FSM |
 | `DELETE /v1/termine/{termin_id}` | `DELETE` | Löscht Termin aus FSM |
+| `GET /v1/kurse` | `GET` | Listet Kurs-Container aus FSM (Stammdaten) |
+| `GET /v1/kurse/{kurs_id}` | `GET` | Liefert die Stammdaten eines einzelnen Kurses |
 | `POST /v1/kurse` | `POST` | Legt einen Kurs-Container (z.B. Theoriekurs) in FSM an |
 | `DELETE /v1/kurse/{kurs_id}` | `DELETE` | Löscht einen Kurs-Container aus FSM |
+| `GET /v1/kurse/{kurs_id}/teilnehmer` | `GET` | Listet die in FSM eingetragenen Kursteilnehmer |
 | `POST /v1/kurse/{kurs_id}/teilnehmer` | `POST` | Fügt einen oder mehrere Schüler zu einem Kurs hinzu |
+| `GET /v1/kurse/{kurs_id}/theorietermine` | `GET` | Liefert den geplanten Tagesplan (Datum/Uhrzeit/Kapitel) eines Kurses |
+| `POST /v1/kurse/{kurs_id}/theorietermine` | `POST` | Legt den Tagesplan (einen oder mehrere Termine) eines Kurses an |
+| `PUT /v1/theorietermine/{termin_id}` | `PUT` | Aktualisiert einen einzelnen Theorietermin |
+| `DELETE /v1/theorietermine/{termin_id}` | `DELETE` | Löscht einen einzelnen Theorietermin |
 | `POST /v1/schueler/suche` | `POST` | Schülersuche mit Pagination & Statusfiltern |
 | `GET /v1/schueler/{student_uuid}` | `GET` | Vollständige Schülerkartei, Kontaktdaten & Klassen |
 | `GET /v1/schueler/{student_uuid}/fahrstunden` | `GET` | Fahrstunden-Historie & Bezahlstatus |

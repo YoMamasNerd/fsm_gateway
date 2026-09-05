@@ -10,13 +10,31 @@ from app.core.client import FsmException, fsm_client
 from app.schemas.kurse import (
     KursActionResponse,
     KursCreateRequest,
+    KursListResponse,
     KursResponse,
     KursteilnehmerAddRequest,
     KursteilnehmerAddResponse,
+    KursteilnehmerItem,
+    KursteilnehmerListResponse,
 )
 
 logger = logging.getLogger("fsm_gateway.api.kurse")
 router = APIRouter(tags=["Kurse"])
+
+
+def _map_kurs(data: dict) -> KursResponse:
+    """Normalizes FSM's raw course fields (camelCase) into KursResponse."""
+    return KursResponse(
+        id=str(data["id"]),
+        kennung=data.get("kennung"),
+        bezeichnung=data.get("bezeichnung"),
+        beginn=data.get("beginn"),
+        ende=data.get("ende"),
+        theoriegruppen=data.get("theoriegruppen") or [],
+        filiale_id=data.get("fidFiliale"),
+        anzahl_teilnehmer=int(data.get("anzahlTeilnehmer") or 0),
+        maximalteilnehmer=data.get("maximalteilnehmer"),
+    )
 
 
 @router.post(
@@ -55,17 +73,7 @@ async def create_kurs(payload: KursCreateRequest) -> KursResponse:
                 detail="FSM hat keine Kurs-ID zurückgegeben.",
             )
 
-        return KursResponse(
-            id=str(vm["id"]),
-            kennung=vm.get("kennung"),
-            bezeichnung=vm.get("bezeichnung"),
-            beginn=vm.get("beginn"),
-            ende=vm.get("ende"),
-            theoriegruppen=vm.get("theoriegruppen") or [],
-            filiale_id=vm.get("fidFiliale"),
-            anzahl_teilnehmer=int(vm.get("anzahlTeilnehmer") or 0),
-            maximalteilnehmer=vm.get("maximalteilnehmer"),
-        )
+        return _map_kurs(vm)
 
     except (FsmException, HTTPException):
         raise
@@ -128,4 +136,83 @@ async def add_kursteilnehmer(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Hinzufügen der Kursteilnehmer fehlgeschlagen: {exc}",
+        )
+
+
+@router.get(
+    "/kurse",
+    response_model=KursListResponse,
+    summary="Kurse auflisten",
+    description="Listet Kurs-Container aus FSM (Stammdaten, kein Tagesplan - siehe /kurse/{kurs_id}/theorietermine dafür).",
+)
+async def list_kurse(active: bool = True) -> KursListResponse:
+    try:
+        rows = await fsm_client.list_kurse(active=active)
+        kurse = [_map_kurs(r) for r in rows if isinstance(r, dict) and r.get("id")]
+        return KursListResponse(count=len(kurse), kurse=kurse)
+    except (FsmException, HTTPException):
+        raise
+    except Exception as exc:
+        logger.error("Fehler beim Auflisten der Kurse: %s", exc)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Kursliste fehlgeschlagen: {exc}",
+        )
+
+
+@router.get(
+    "/kurse/{kurs_id}",
+    response_model=KursResponse,
+    summary="Kursdetails abrufen",
+    description="Liefert die Stammdaten eines einzelnen Kurses.",
+)
+async def get_kurs(
+    kurs_id: str = Path(..., description="FSM UUID des Kurses"),
+) -> KursResponse:
+    clean_id = kurs_id.strip()
+    try:
+        data = await fsm_client.get_kurs(clean_id)
+        if not data:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Kurs {clean_id} nicht gefunden.")
+        return _map_kurs(data)
+    except (FsmException, HTTPException):
+        raise
+    except Exception as exc:
+        logger.error("Fehler beim Abrufen von Kurs %s: %s", clean_id, exc)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Kursabruf fehlgeschlagen: {exc}",
+        )
+
+
+@router.get(
+    "/kurse/{kurs_id}/teilnehmer",
+    response_model=KursteilnehmerListResponse,
+    summary="Kursteilnehmer auflisten",
+    description="Listet die in FSM für einen Kurs eingetragenen Schüler.",
+)
+async def list_kursteilnehmer(
+    kurs_id: str = Path(..., description="FSM UUID des Kurses"),
+) -> KursteilnehmerListResponse:
+    clean_id = kurs_id.strip()
+    try:
+        rows = await fsm_client.get_kurs_teilnehmer(clean_id)
+        teilnehmer = [
+            KursteilnehmerItem(
+                id=str(r["id"]),
+                vorname=r.get("vorname"),
+                nachname=r.get("nachname"),
+                klassen=r.get("klassen") or [],
+            )
+            for r in rows
+            if isinstance(r, dict) and r.get("id")
+        ]
+        return KursteilnehmerListResponse(kurs_id=clean_id, count=len(teilnehmer), teilnehmer=teilnehmer)
+    except (FsmException, HTTPException):
+        raise
+    except Exception as exc:
+        logger.error("Fehler beim Abrufen der Kursteilnehmer für %s: %s", clean_id, exc)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Kursteilnehmer-Abruf fehlgeschlagen: {exc}",
         )

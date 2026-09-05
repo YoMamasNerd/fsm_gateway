@@ -427,12 +427,20 @@ async def get_schueler_theorie(
             tid = str(r.get("id") or r.get("fidTheoriestunde") or "")
             if not tid:
                 continue
+            lehrer_vor = r.get("fahrlehrerVorname") or ""
+            lehrer_nach = r.get("fahrlehrerNachname") or ""
+            lehrer_name = (
+                f"{lehrer_vor} {lehrer_nach}".strip()
+                or r.get("lehrer")
+                or r.get("fahrlehrer_Name")
+                or r.get("Lehrer")
+            )
             items.append(
                 TheoriestundeItem(
                     id=tid,
                     datum=r.get("datum") or r.get("Datum"),
                     thema=r.get("thema") or r.get("kapitel") or r.get("Thema"),
-                    lehrer_name=r.get("lehrer") or r.get("fahrlehrer_Name") or r.get("Lehrer"),
+                    lehrer_name=lehrer_name or None,
                     filiale=r.get("filiale") or r.get("Filiale"),
                     dauer_minuten=_parse_german_number(r.get("dauer") or r.get("dauer_minuten")) or 90.0,
                     storno=bool(r.get("storno", False)),

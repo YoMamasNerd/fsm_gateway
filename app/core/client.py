@@ -1410,6 +1410,7 @@ class FSMClient:
         von: str,
         bis: str,
         minuten: int = 90,
+        kurs_start_datum: str | None = None,
     ) -> dict[str, Any]:
         """Erfasst / bucht eine Theoriestunde für einen Schüler in FSM Cloud."""
         # Automatisch Fahrlehrername ergänzen falls leer
@@ -1446,7 +1447,27 @@ class FSMClient:
             }
         }
 
-        res = await self.request("POST", "v1/theoriestunden", json_data=payload)
+        try:
+            res = await self.request("POST", "v1/theoriestunden", json_data=payload)
+        except FsmApiError as exc:
+            # FSM lehnt Buchungen ab, deren Datum vor dem Anmeldedatum des Schülers
+            # liegt (z.B. wenn der Schüler erst nach Kursbeginn in FSM angelegt
+            # wurde). Selbe Selbstheilung wie bei record_zahlung: Anmeldedatum auf
+            # den ersten Kurstag vorverlegen (falls bekannt, sonst auf das
+            # Stundendatum selbst) und einmal erneut versuchen.
+            if "Anmeldedatum" in str(exc):
+                target_date_str = str(kurs_start_datum or datum)[:10]
+                logger.warning(
+                    "FSM verweigerte Theoriestunde für %s wegen Anmeldedatum, "
+                    "versuche Anmeldedatum auf %s vorzuverlegen: %s",
+                    student_uuid, target_date_str, exc,
+                )
+                updated = await self.update_schueler_anmeldedatum(student_uuid, target_date_str)
+                if not updated:
+                    raise
+                res = await self.request("POST", "v1/theoriestunden", json_data=payload)
+            else:
+                raise
 
         # Caches invalidieren (Schüler-Theorie, Ausbildungsstand und Karteikarte)
         await cache.delete_prefix(f"schueler:theorie:{student_uuid}")

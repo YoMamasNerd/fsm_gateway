@@ -69,4 +69,13 @@ class TheoriestundeCreateRequest(BaseModel):
     von: str = Field(..., description="Startzeitpunkt im ISO-Format (z.B. '2026-08-25T18:00:00')")
     bis: str = Field(..., description="Endzeitpunkt im ISO-Format (z.B. '2026-08-25T19:30:00')")
     minuten: int = Field(90, description="Dauer in Minuten (Standard: 90)")
+    kurs_start_datum: str | None = Field(
+        None,
+        description=(
+            "Erster Tag des Theoriekurses (ISO-Datum). Fallback-Anmeldedatum: "
+            "lehnt FSM die Buchung ab, weil das Anmeldedatum des Schülers nach "
+            "diesem Stundendatum liegt, wird das Anmeldedatum automatisch auf "
+            "dieses Datum vorverlegt und die Buchung einmal wiederholt."
+        ),
+    )
 

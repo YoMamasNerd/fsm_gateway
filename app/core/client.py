@@ -901,14 +901,23 @@ class FSMClient:
         return res if isinstance(res, dict) else {"rows": []}
 
     async def get_schueler_details(self, student_uuid: str, fresh: bool = False) -> dict[str, Any]:
-        """Fetches full student master data, address, classes and status (cached 300s)."""
+        """Fetches full student master data, address, classes and status (cached 300s).
+
+        Nutzt bewusst GET v1/schueler/{id} (nicht die schlankere
+        v1/schueler/kartei/{id}) - nur die volle Variante liefert u.a.
+        `vorhandeneKlassen` (fuer Mehrfach-FEK-Auswertung) und die fuer
+        PUT v1/schueler benoetigten Felder (siehe update_schueler_anmeldedatum).
+        Live-Fund: die Kartei-Variante hier fuehrte dazu, dass Mehrfach-FEK-
+        Anreicherung beim Import/Matching immer nur die eine bekannte Klasse
+        zurueckgab, egal wie oft man es erneut versuchte.
+        """
         cache_key = f"fsm:schueler:{student_uuid}"
         if not fresh:
             cached = await cache.get(cache_key)
             if cached is not None and isinstance(cached, dict):
                 return cached
 
-        res = await self.request("GET", f"v1/schueler/kartei/{student_uuid}")
+        res = await self.request("GET", f"v1/schueler/{student_uuid}")
         details = res if isinstance(res, dict) else {}
         if details:
             await cache.set(cache_key, details, ttl=settings.CACHE_TTL_SECONDS)

@@ -10,7 +10,8 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Any
 
-from fastapi import Depends, FastAPI, Request, status
+from fastapi import Depends, FastAPI, HTTPException, Request, status
+from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse, RedirectResponse, Response
 from fastapi.staticfiles import StaticFiles
@@ -145,6 +146,16 @@ app.add_middleware(
 # Exception Handlers
 @app.exception_handler(FsmAuthError)
 async def fsm_auth_exception_handler(request: Request, exc: FsmAuthError):
+    client_ip = request.client.host if request.client else ""
+    metrics_collector.record_error(
+        method=request.method,
+        path=request.url.path,
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        error_type="FsmAuthError",
+        message=str(exc),
+        details=None,
+        client_ip=client_ip,
+    )
     return JSONResponse(
         status_code=status.HTTP_401_UNAUTHORIZED,
         content={"detail": str(exc), "error_type": "FsmAuthError"},
@@ -153,6 +164,16 @@ async def fsm_auth_exception_handler(request: Request, exc: FsmAuthError):
 
 @app.exception_handler(FsmConfigError)
 async def fsm_config_exception_handler(request: Request, exc: FsmConfigError):
+    client_ip = request.client.host if request.client else ""
+    metrics_collector.record_error(
+        method=request.method,
+        path=request.url.path,
+        status_code=status.HTTP_400_BAD_REQUEST,
+        error_type="FsmConfigError",
+        message=str(exc),
+        details=None,
+        client_ip=client_ip,
+    )
     return JSONResponse(
         status_code=status.HTTP_400_BAD_REQUEST,
         content={"detail": str(exc), "error_type": "FsmConfigError"},
@@ -161,6 +182,16 @@ async def fsm_config_exception_handler(request: Request, exc: FsmConfigError):
 
 @app.exception_handler(FsmApiError)
 async def fsm_api_exception_handler(request: Request, exc: FsmApiError):
+    client_ip = request.client.host if request.client else ""
+    metrics_collector.record_error(
+        method=request.method,
+        path=request.url.path,
+        status_code=exc.status_code,
+        error_type="FsmApiError",
+        message=str(exc),
+        details=exc.response_body,
+        client_ip=client_ip,
+    )
     return JSONResponse(
         status_code=exc.status_code,
         content={
@@ -173,9 +204,84 @@ async def fsm_api_exception_handler(request: Request, exc: FsmApiError):
 
 @app.exception_handler(FsmException)
 async def fsm_generic_exception_handler(request: Request, exc: FsmException):
+    client_ip = request.client.host if request.client else ""
+    metrics_collector.record_error(
+        method=request.method,
+        path=request.url.path,
+        status_code=status.HTTP_502_BAD_GATEWAY,
+        error_type="FsmException",
+        message=str(exc),
+        details=None,
+        client_ip=client_ip,
+    )
     return JSONResponse(
         status_code=status.HTTP_502_BAD_GATEWAY,
         content={"detail": str(exc), "error_type": "FsmException"},
+    )
+
+
+@app.exception_handler(HTTPException)
+async def http_exception_handler(request: Request, exc: HTTPException):
+    client_ip = request.client.host if request.client else ""
+    if exc.status_code >= 400:
+        metrics_collector.record_error(
+            method=request.method,
+            path=request.url.path,
+            status_code=exc.status_code,
+            error_type="HTTPException",
+            message=str(exc.detail),
+            details=exc.headers,
+            client_ip=client_ip,
+        )
+    return JSONResponse(
+        status_code=exc.status_code,
+        content={"detail": exc.detail},
+        headers=exc.headers,
+    )
+
+
+@app.exception_handler(RequestValidationError)
+async def validation_exception_handler(request: Request, exc: RequestValidationError):
+    client_ip = request.client.host if request.client else ""
+    errors = exc.errors()
+    err_msgs = []
+    for err in errors:
+        loc = " -> ".join(str(l) for l in err.get("loc", []))
+        msg = err.get("msg", "Ungültige Eingabe")
+        err_msgs.append(f"{loc}: {msg}" if loc else msg)
+    summary_msg = "; ".join(err_msgs) if err_msgs else "Validierungsfehler"
+
+    metrics_collector.record_error(
+        method=request.method,
+        path=request.url.path,
+        status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+        error_type="RequestValidationError",
+        message=summary_msg,
+        details=errors,
+        client_ip=client_ip,
+    )
+    return JSONResponse(
+        status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+        content={"detail": errors, "error_type": "RequestValidationError", "message": summary_msg},
+    )
+
+
+@app.exception_handler(Exception)
+async def unhandled_exception_handler(request: Request, exc: Exception):
+    client_ip = request.client.host if request.client else ""
+    logger.exception("Unerwarteter Serverfehler bei %s %s: %s", request.method, request.url.path, exc)
+    metrics_collector.record_error(
+        method=request.method,
+        path=request.url.path,
+        status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+        error_type=exc.__class__.__name__,
+        message=str(exc) or "Interner Serverfehler",
+        details=None,
+        client_ip=client_ip,
+    )
+    return JSONResponse(
+        status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+        content={"detail": "Interner Serverfehler", "error_type": exc.__class__.__name__},
     )
 
 

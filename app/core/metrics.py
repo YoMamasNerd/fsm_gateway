@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import asyncio
+from collections import deque
+import json
 import logging
 import sqlite3
 import time
@@ -27,6 +29,7 @@ class MetricsCollector:
         self._is_running = False
         self.cache_hits_total = 0
         self.cache_misses_total = 0
+        self._recent_errors: deque[dict[str, Any]] = deque(maxlen=200)
         self.init_db()
 
     def _get_tz(self) -> ZoneInfo:
@@ -62,6 +65,23 @@ class MetricsCollector:
             conn.execute("CREATE INDEX IF NOT EXISTS idx_metrics_timestamp ON request_metrics(timestamp);")
             conn.execute("CREATE INDEX IF NOT EXISTS idx_metrics_path ON request_metrics(path);")
             conn.execute("CREATE INDEX IF NOT EXISTS idx_metrics_status ON request_metrics(status_code);")
+
+            conn.execute("""
+                CREATE TABLE IF NOT EXISTS error_logs (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    timestamp REAL NOT NULL,
+                    method TEXT NOT NULL,
+                    path TEXT NOT NULL,
+                    status_code INTEGER NOT NULL,
+                    error_type TEXT NOT NULL,
+                    message TEXT NOT NULL,
+                    details TEXT,
+                    client_ip TEXT
+                );
+            """)
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_errors_timestamp ON error_logs(timestamp);")
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_errors_status ON error_logs(status_code);")
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_errors_path ON error_logs(path);")
             conn.commit()
 
 
@@ -369,6 +389,141 @@ class MetricsCollector:
                 "client_ip": r["client_ip"],
             })
         return results
+
+    def record_error(
+        self,
+        method: str,
+        path: str,
+        status_code: int,
+        error_type: str,
+        message: str,
+        details: Any = None,
+        client_ip: str | None = None,
+    ) -> None:
+        """Records an error with explanation/reason into memory and SQLite."""
+        # Skip dashboard and internal static errors to keep log relevant
+        if path.startswith("/dashboard") or path in ("/favicon.ico", "/favicon.svg", "/favicon.png"):
+            return
+
+        now = time.time()
+        tz = self._get_tz()
+        dt_obj = datetime.fromtimestamp(now, tz=tz)
+
+        details_str = None
+        if details is not None:
+            if isinstance(details, (dict, list)):
+                try:
+                    details_str = json.dumps(details, ensure_ascii=False)
+                except Exception:
+                    details_str = str(details)
+            else:
+                details_str = str(details)
+
+        error_entry = {
+            "id": None,
+            "timestamp": dt_obj.isoformat(),
+            "time": dt_obj.strftime("%H:%M:%S"),
+            "date": dt_obj.strftime("%d.%m.%Y"),
+            "method": method,
+            "path": path,
+            "status_code": status_code,
+            "error_type": error_type,
+            "message": message,
+            "begruendung": message,
+            "details": details,
+            "client_ip": client_ip,
+        }
+        self._recent_errors.appendleft(error_entry)
+
+        try:
+            with self._connect(timeout=2.0) as conn:
+                cursor = conn.cursor()
+                cursor.execute("""
+                    INSERT INTO error_logs (timestamp, method, path, status_code, error_type, message, details, client_ip)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                """, (now, method, path, status_code, error_type, message, details_str, client_ip))
+                conn.commit()
+                error_entry["id"] = cursor.lastrowid
+        except Exception as exc:
+            logger.warning("Konnte Fehler nicht in SQLite protokollieren: %s", exc)
+
+    def get_recent_errors(
+        self,
+        limit: int = 50,
+        status_code: int | None = None,
+        since_minutes: int | None = None,
+        path: str | None = None,
+    ) -> list[dict[str, Any]]:
+        """Returns recent errors matching optional filters with explanation/reason."""
+        query = "SELECT id, timestamp, method, path, status_code, error_type, message, details, client_ip FROM error_logs WHERE 1=1"
+        params: list[Any] = []
+
+        if status_code is not None:
+            query += " AND status_code = ?"
+            params.append(status_code)
+
+        if since_minutes is not None:
+            cutoff = time.time() - (since_minutes * 60)
+            query += " AND timestamp >= ?"
+            params.append(cutoff)
+
+        if path:
+            query += " AND path LIKE ?"
+            params.append(f"%{path}%")
+
+        query += " ORDER BY id DESC LIMIT ?"
+        params.append(limit)
+
+        try:
+            with self._connect(timeout=5.0) as conn:
+                conn.row_factory = sqlite3.Row
+                cursor = conn.cursor()
+                cursor.execute(query, params)
+                rows = cursor.fetchall()
+        except Exception as exc:
+            logger.error("Fehler beim Abrufen der Fehlerprotokolle: %s", exc)
+            return list(self._recent_errors)[:limit]
+
+        results = []
+        tz = self._get_tz()
+        for r in rows:
+            dt_obj = datetime.fromtimestamp(r["timestamp"], tz=tz)
+            raw_details = r["details"]
+            parsed_details = None
+            if raw_details:
+                try:
+                    parsed_details = json.loads(raw_details)
+                except Exception:
+                    parsed_details = raw_details
+
+            results.append({
+                "id": r["id"],
+                "timestamp": dt_obj.isoformat(),
+                "time": dt_obj.strftime("%H:%M:%S"),
+                "date": dt_obj.strftime("%d.%m.%Y"),
+                "method": r["method"],
+                "path": r["path"],
+                "status_code": r["status_code"],
+                "error_type": r["error_type"],
+                "message": r["message"],
+                "begruendung": r["message"],
+                "details": parsed_details,
+                "client_ip": r["client_ip"],
+            })
+        return results
+
+    def clear_errors(self) -> int:
+        """Clears all logged errors from SQLite and memory."""
+        self._recent_errors.clear()
+        try:
+            with self._connect(timeout=5.0) as conn:
+                cursor = conn.cursor()
+                cursor.execute("DELETE FROM error_logs;")
+                conn.commit()
+                return cursor.rowcount
+        except Exception as exc:
+            logger.error("Fehler beim Löschen der Fehlerprotokolle: %s", exc)
+            return 0
 
     def get_prometheus_metrics(self) -> str:
         """Renders metrics in official Prometheus plaintext format."""

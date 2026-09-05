@@ -278,6 +278,7 @@ async def get_dashboard_live(
 
     live = metrics_collector.get_live_stats()
     recent = metrics_collector.get_recent_requests(limit=40)
+    recent_errors = metrics_collector.get_recent_errors(limit=10)
     token = await fsm_client.get_auth_token()
     cloud_status = {
         "authenticated": bool(token),
@@ -286,6 +287,7 @@ async def get_dashboard_live(
     return {
         "live": live,
         "recent": recent,
+        "recent_errors": recent_errors,
         "cloud_status": cloud_status,
     }
 
@@ -759,6 +761,40 @@ def _render_dashboard_html() -> str:
                 </div>
             </div>
         </div>
+
+        <!-- Fehlerprotokoll & Begründungen -->
+        <div class="row g-3 mb-4" id="errorsSection" style="display: none;">
+            <div class="col-12">
+                <div class="card p-3 border-danger" style="background: rgba(239, 68, 68, 0.05);">
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <h6 class="fw-bold mb-0 text-danger d-flex align-items-center gap-2">
+                            <span>⚠️</span> Letzte Fehler & Begründungen
+                            <span class="badge bg-danger rounded-pill" id="errorsCountBadge">0</span>
+                        </h6>
+                        <div class="d-flex gap-2">
+                            <button class="btn btn-sm btn-outline-secondary text-light" onclick="clearGatewayErrors()" title="Fehlerprotokoll zurücksetzen">Fehler löschen</button>
+                            <a href="/v1/errors" target="_blank" class="btn btn-sm btn-outline-danger">JSON API</a>
+                        </div>
+                    </div>
+                    <div class="table-responsive" style="max-height: 240px; overflow-y: auto;">
+                        <table class="table table-custom table-hover align-middle mb-0 small">
+                            <thead class="text-secondary sticky-top" style="background: #111827;">
+                                <tr>
+                                    <th>Zeit</th>
+                                    <th>Methode</th>
+                                    <th>Pfad</th>
+                                    <th>Status</th>
+                                    <th>Fehlertyp</th>
+                                    <th>Begründung / Ursache</th>
+                                </tr>
+                            </thead>
+                            <tbody id="errorsTableBody">
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
     </div>
 
     <script>
@@ -1028,8 +1064,46 @@ def _render_dashboard_html() -> str:
                         <td class="text-end text-secondary">${r.duration_ms} ms</td>
                     </tr>`;
                 }).join('');
+
+                // Update Errors Section
+                const errorsSec = document.getElementById('errorsSection');
+                const errorsBody = document.getElementById('errorsTableBody');
+                const errorsBadge = document.getElementById('errorsCountBadge');
+                if (errorsSec && errorsBody && errorsBadge) {
+                    const errs = data.recent_errors || [];
+                    if (errs.length > 0) {
+                        errorsSec.style.display = 'block';
+                        errorsBadge.textContent = errs.length;
+                        errorsBody.innerHTML = errs.map(err => {
+                            const escBegruendung = (err.begruendung || err.message || '').replace(/[&<>"']/g, m => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'}[m]));
+                            const escPath = (err.path || '').replace(/[&<>"']/g, m => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'}[m]));
+                            return `<tr>
+                                <td class="text-secondary">${err.time || ''}</td>
+                                <td>${getMethodBadge(err.method)}</td>
+                                <td class="font-monospace text-light text-truncate" style="max-width: 160px;" title="${escPath}">${escPath}</td>
+                                <td>${getStatusBadge(err.status_code)}</td>
+                                <td><span class="badge bg-danger bg-opacity-25 text-danger">${err.error_type || 'Error'}</span></td>
+                                <td class="text-light" style="max-width: 400px; word-break: break-word;" title="${escBegruendung}">${escBegruendung}</td>
+                            </tr>`;
+                        }).join('');
+                    } else {
+                        errorsSec.style.display = 'none';
+                    }
+                }
             } catch (err) {
                 console.error('Error fetching live feed:', err);
+            }
+        }
+
+        async function clearGatewayErrors() {
+            if (!confirm('Fehlerprotokoll wirklich leeren?')) return;
+            try {
+                const res = await fetch('/v1/errors', { method: 'DELETE' });
+                if (res.ok) {
+                    await loadLiveFeed();
+                }
+            } catch (err) {
+                console.error('Fehler beim Löschen der Protokolle:', err);
             }
         }
 

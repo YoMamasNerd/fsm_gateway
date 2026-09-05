@@ -13,6 +13,7 @@ from app.api.v1.preislisten import router as preislisten_router
 from app.api.v1.schueler import router as schueler_router
 from app.api.v1.stammdaten import router as stammdaten_router
 from app.api.v1.statistiken import router as statistiken_router
+from app.api.v1.errors import alias_router as fehler_router, router as errors_router
 from app.api.v1.theorietermine import router as theorietermine_router
 from app.api.v1.webhooks import router as webhooks_router
 
@@ -30,3 +31,6 @@ api_v1_router.include_router(stammdaten_router)
 api_v1_router.include_router(statistiken_router)
 api_v1_router.include_router(kassenbuch_router)
 api_v1_router.include_router(webhooks_router)
+api_v1_router.include_router(errors_router)
+api_v1_router.include_router(fehler_router)
+

@@ -152,7 +152,7 @@ async def test_schueler_endpoints(async_client: httpx.AsyncClient):
     assert search_data["schueler"][0]["voller_name"] == "Erika Musterfrau"
 
     # Mock Schülerkartei Details
-    respx.get("https://api.fahrschulmanager.de/v1/schueler/kartei/student-uuid-99").respond(
+    respx.get("https://api.fahrschulmanager.de/v1/schueler/student-uuid-99").respond(
         status_code=200,
         json={
             "id": "student-uuid-99",

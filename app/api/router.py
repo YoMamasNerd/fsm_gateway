@@ -21,6 +21,7 @@ from app.api.v1.preislisten import router as direct_preislisten
 from app.api.v1.schueler import router as direct_schueler
 from app.api.v1.stammdaten import router as direct_stammdaten
 from app.api.v1.statistiken import router as direct_statistiken
+from app.api.v1.errors import alias_router as direct_fehler, router as direct_errors
 from app.api.v1.theorietermine import router as direct_theorietermine
 from app.api.v1.webhooks import router as direct_webhooks
 
@@ -38,6 +39,8 @@ compat_router.include_router(direct_stammdaten)
 compat_router.include_router(direct_statistiken)
 compat_router.include_router(direct_kassenbuch)
 compat_router.include_router(direct_webhooks)
+compat_router.include_router(direct_errors)
+compat_router.include_router(direct_fehler)
 
 main_router.include_router(dashboard_router)
 main_router.include_router(compat_router)

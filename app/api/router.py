@@ -21,6 +21,7 @@ from app.api.v1.preislisten import router as direct_preislisten
 from app.api.v1.schueler import router as direct_schueler
 from app.api.v1.stammdaten import router as direct_stammdaten
 from app.api.v1.statistiken import router as direct_statistiken
+from app.api.v1.theorietermine import router as direct_theorietermine
 from app.api.v1.webhooks import router as direct_webhooks
 
 compat_router = APIRouter(include_in_schema=False)
@@ -28,6 +29,7 @@ compat_router.include_router(direct_auth)
 compat_router.include_router(direct_fahrlehrer)
 compat_router.include_router(direct_kalender)
 compat_router.include_router(direct_kurse)
+compat_router.include_router(direct_theorietermine)
 compat_router.include_router(direct_schueler)
 compat_router.include_router(direct_finanzen)
 compat_router.include_router(direct_fuhrpark)

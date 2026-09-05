@@ -72,13 +72,29 @@ Dieses Dokument dient als zentrale Referenz für alle bekannten und erfassten Sc
 ### 4. Kurse (z.B. Erste Hilfe, ASF, FES, Theoriekurse)
 * `GET /v1/kurse` &rarr; Liste aller Kurse
 * `GET /v2/kurse?active=true` &rarr; Liste aktiver Kurse (vom Web-Client verwendet)
-* `GET /v1/kurse/{kurs_id}` &rarr; Kursdetails
-* `GET /v1/kurse/{kurs_id}/termine` &rarr; Termine eines Kurses
-* `POST /v1/kurse` &rarr; Kurs anlegen. Body: `{viewModel: {id: "00000000-0000-0000-0000-000000000000", kennung, bezeichnung, beginn, ende, uhrzeitVon, uhrzeitBis, maximalteilnehmer, ueberbuchungMoeglich, fahrschule123, buchbarBeiOnlineanmeldung, theoriegruppen: [...], filialen: [...], fidFiliale}}`. Antwort (201) liefert die generierte Kurs-UUID in `viewModel.id`. Verifiziert per Live-Traffic-Capture (fsm_live_monitor.py), jetzt auch im Gateway unter `POST /v1/kurse` verfügbar.
+* `GET /v1/kurse/{kurs_id}` &rarr; Kursdetails (flaches JSON, **nicht** Table-Format - anders als die Liste!). Im Gateway: `GET /v1/kurse/{kurs_id}`.
+* `POST /v1/kurse` &rarr; Kurs anlegen. Body: `{viewModel: {id: "00000000-0000-0000-0000-000000000000", kennung, bezeichnung, beginn, ende, uhrzeitVon, uhrzeitBis, maximalteilnehmer, ueberbuchungMoeglich, fahrschule123, buchbarBeiOnlineanmeldung, theoriegruppen: [...], filialen: [...], fidFiliale}}`. Antwort (201) liefert die generierte Kurs-UUID in `viewModel.id`. **Wichtig: `kennung` ist auf maximal 10 Zeichen begrenzt** ("Kennung darf maximal 10 Zeichen lang sein."), live verifiziert. Im Gateway: `POST /v1/kurse`.
 * `DELETE /v1/kurse` &rarr; Kurs löschen. **Kein Pfad-Parameter** - UUID steht im Body: `{viewModel: {id: kurs_id}}`. Im Gateway als `DELETE /v1/kurse/{kurs_id}` gekapselt.
 * `GET /v1/kurse/anwesenheitsliste` &rarr; Digitale Anwesenheitsliste
-* `GET /v1/kursteilnehmer/{kurs_id}` &rarr; Teilnehmerliste eines Kurses (Antwort im generischen "Table"-Format der FSM-UI, noch nicht im Gateway normalisiert)
+* `GET /v1/kursteilnehmer/{kurs_id}` &rarr; Teilnehmerliste eines Kurses (Table-Format). Im Gateway normalisiert verfügbar als `GET /v1/kurse/{kurs_id}/teilnehmer`.
 * `POST /v1/kursteilnehmer` &rarr; Teilnehmer zu Kurs hinzufügen. Body: `{viewModel: {teilnehmer: [schueler_uuid, ...], kursId}}`, Antwort echot `{kursId, teilnehmer}` zurück. Im Gateway verfügbar als `POST /v1/kurse/{kurs_id}/teilnehmer`.
+
+#### 4a. Theorietermine (Kurs-Tagesplan - eigenständiges Konzept, siehe unten)
+
+**Wichtiger Fund (Live-Traffic-Capture, 2026-09-05):** FSM hat einen eigenständigen
+Tagesplan-Mechanismus pro Kurs, komplett getrennt von der Schüler-Einzelbuchung unter
+Punkt 6 (Theoriestunden). Ein *Theorietermin* gehört zum **Kurs** (`fidKurs`) und
+beschreibt, wann welches Thema stattfindet; eine *Theoriestunde* gehört zum
+**Schüler** (`fidKunde`) und beschreibt, ob er teilgenommen hat. Die meisten realen
+Kurse in diesem Account hatten bei der ersten Untersuchung **keinen** Tagesplan
+hinterlegt (0 Zeilen) - das Feature wird also nicht durchgehend genutzt, existiert
+aber und wurde live erfolgreich durchgespielt (anlegen/lesen/ändern/löschen).
+
+* `GET /v1/kurse/{kurs_id}/termine` &rarr; Tagesplan eines Kurses (Table-Format: `Datum`, `Uhrzeit`, `Minuten`, `Kapitel`). Im Gateway: `GET /v1/kurse/{kurs_id}/theorietermine`.
+* `POST /v1/termine/theorietermin/bulk` &rarr; Legt einen oder mehrere Termine auf einmal an. Body: `{viewModel: {termine: [{von, bis, fidKurs, fidTerminart: "PT", gebucht: false, fidFahrlehrer: [...], fidSystemtheoriegruppe, fidFiliale, kapitel}, ...]}}`. Antwort (201) liefert `viewModel` als Liste der vollen erzeugten Objekte (inkl. generierter `id`, auto-gebautem `texte` = `"TH-Grundstoff\n{kapitel}"`, berechnetem `minuten`). Im Gateway: `POST /v1/kurse/{kurs_id}/theorietermine`.
+* `GET /v1/termine/theorietermin/{id}` &rarr; Einzelnen Theorietermin abrufen (volles Objekt, nicht Table-Format) - wird für Update benötigt.
+* `PUT /v1/termine/theorietermin` &rarr; Termin aktualisieren. **Kein Pfad-Parameter, kein partielles Update** - FSM erwartet das komplette Objekt inkl. `id` im Body, unveränderte Felder müssen mitgeschickt werden. Im Gateway: `PUT /v1/theorietermine/{termin_id}` (holt den aktuellen Stand selbst und merged).
+* `DELETE /v1/termine/theorietermin` &rarr; Termin löschen. Body: `{viewModel: {id: termin_id}}`. Im Gateway: `DELETE /v1/theorietermine/{termin_id}`.
 
 ### 5. Online-Anmeldungen
 * `GET /v1/onlineanmeldung/{id}` &rarr; Eingehende Online-Anmeldung

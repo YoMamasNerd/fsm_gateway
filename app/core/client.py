@@ -736,6 +736,102 @@ class FSMClient:
         added = vm.get("teilnehmer") if isinstance(vm, dict) else None
         return [str(sid) for sid in added] if isinstance(added, list) else list(schueler_ids)
 
+    async def list_kurse(self, active: bool = True) -> list[dict[str, Any]]:
+        """Listet Kurs-Container aus FSM (Stammdaten, kein Tagesplan)."""
+        res = await self.request("GET", "v2/kurse", params={"active": "true" if active else "false"})
+        rows = res.get("rows", []) if isinstance(res, dict) else []
+        return [row["data"] for row in rows if isinstance(row, dict) and "data" in row]
+
+    async def get_kurs(self, kurs_id: str) -> dict[str, Any] | None:
+        """Holt die Stammdaten eines einzelnen Kurses (flaches JSON, kein Table-Format)."""
+        res = await self.request("GET", f"v1/kurse/{kurs_id}")
+        return res if isinstance(res, dict) else None
+
+    async def get_kurs_teilnehmer(self, kurs_id: str) -> list[dict[str, Any]]:
+        """Listet die in FSM eingetragenen Teilnehmer eines Kurses."""
+        res = await self.request("GET", f"v1/kursteilnehmer/{kurs_id}")
+        rows = res.get("rows", []) if isinstance(res, dict) else []
+        return [row["data"] for row in rows if isinstance(row, dict) and "data" in row]
+
+    async def get_kurs_termine(self, kurs_id: str) -> list[dict[str, Any]]:
+        """Listet die geplanten Theorietermine (Tagesplan) eines Kurses."""
+        res = await self.request("GET", f"v1/kurse/{kurs_id}/termine")
+        rows = res.get("rows", []) if isinstance(res, dict) else []
+        return [row["data"] for row in rows if isinstance(row, dict) and "data" in row]
+
+    async def create_theorietermine_bulk(
+        self,
+        kurs_id: str,
+        termine: list[dict[str, Any]],
+    ) -> list[dict[str, Any]]:
+        """
+        Legt den Tagesplan (Theorietermine) eines Kurses in FSM an. Jedes Element von
+        `termine` erwartet: von, bis, kapitel, fahrlehrer_id, optional filiale_id,
+        systemtheoriegruppe.
+        """
+        payload_termine = []
+        for t in termine:
+            payload_termine.append({
+                "von": _normalize_iso_datetime(t["von"]),
+                "bis": _normalize_iso_datetime(t["bis"]),
+                "fidKurs": kurs_id,
+                "fidTerminart": "PT",
+                "gebucht": False,
+                "fidFahrlehrer": [t["fahrlehrer_id"]] if t.get("fahrlehrer_id") else [],
+                "fidSystemtheoriegruppe": t.get("systemtheoriegruppe") or "*",
+                "fidFiliale": t.get("filiale_id") or settings.FSM_DEFAULT_FILIALE_ID,
+                "kapitel": t["kapitel"],
+            })
+
+        res = await self.request(
+            "POST", "v1/termine/theorietermin/bulk", json_data={"viewModel": {"termine": payload_termine}}
+        )
+        vm = res.get("viewModel", []) if isinstance(res, dict) else []
+        return vm if isinstance(vm, list) else []
+
+    async def get_theorietermin(self, termin_id: str) -> dict[str, Any] | None:
+        """Holt einen einzelnen Theorietermin (volles Objekt, für Update benötigt)."""
+        res = await self.request("GET", f"v1/termine/theorietermin/{termin_id}")
+        return res if isinstance(res, dict) else None
+
+    async def update_theorietermin(
+        self,
+        termin_id: str,
+        von: dt.datetime | None = None,
+        bis: dt.datetime | None = None,
+        kapitel: str | None = None,
+        fahrlehrer_id: str | None = None,
+    ) -> bool:
+        """
+        Aktualisiert einen Theorietermin. FSM's PUT erwartet das vollständige Objekt,
+        nicht nur die geänderten Felder - daher wird der aktuelle Stand zuerst geholt
+        und die Änderungen zusammengeführt.
+        """
+        current = await self.get_theorietermin(termin_id)
+        if not current:
+            raise FsmApiError(404, f"Theorietermin {termin_id} nicht gefunden")
+
+        if von is not None:
+            current["von"] = _normalize_iso_datetime(von)
+        if bis is not None:
+            current["bis"] = _normalize_iso_datetime(bis)
+        if kapitel is not None:
+            current["kapitel"] = kapitel
+            current["bemerkung"] = kapitel
+            gruppe_label = "Grundstoff" if current.get("fidSystemtheoriegruppe") == "*" else "Zusatzstoff"
+            current["texte"] = f"TH-{gruppe_label}\n{kapitel}"
+        if fahrlehrer_id is not None:
+            current["fidFahrlehrer"] = [fahrlehrer_id]
+
+        await self.request("PUT", "v1/termine/theorietermin", json_data={"viewModel": current})
+        return True
+
+    async def delete_theorietermin(self, termin_id: str) -> bool:
+        """Löscht einen einzelnen Theorietermin aus FSM."""
+        payload = {"viewModel": {"id": termin_id}}
+        await self.request("DELETE", "v1/termine/theorietermin", json_data=payload)
+        return True
+
     async def search_schueler(
         self,
         query: str | None = None,

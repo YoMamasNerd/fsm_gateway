@@ -1,10 +1,8 @@
 """Tests for error reporting and explanations endpoints (/v1/errors, /v1/fehler)."""
 
 import pytest
-from httpx import ASGITransport, AsyncClient
 
 from app.core.metrics import metrics_collector
-from app.main import app
 
 
 @pytest.fixture(autouse=True)

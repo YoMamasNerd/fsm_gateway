@@ -8,8 +8,8 @@ import hmac
 import json
 import secrets
 import time
-from typing import Any
 import urllib.parse
+from typing import Any
 
 import httpx
 from fastapi import APIRouter, Cookie, Header, HTTPException, Request, Response, status

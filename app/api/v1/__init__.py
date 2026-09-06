@@ -3,6 +3,8 @@
 from fastapi import APIRouter
 
 from app.api.v1.auth import router as auth_router
+from app.api.v1.errors import alias_router as fehler_router
+from app.api.v1.errors import router as errors_router
 from app.api.v1.fahrlehrer import router as fahrlehrer_router
 from app.api.v1.finanzen import router as finanzen_router
 from app.api.v1.fuhrpark import router as fuhrpark_router
@@ -13,7 +15,6 @@ from app.api.v1.preislisten import router as preislisten_router
 from app.api.v1.schueler import router as schueler_router
 from app.api.v1.stammdaten import router as stammdaten_router
 from app.api.v1.statistiken import router as statistiken_router
-from app.api.v1.errors import alias_router as fehler_router, router as errors_router
 from app.api.v1.theorietermine import router as theorietermine_router
 from app.api.v1.webhooks import router as webhooks_router
 

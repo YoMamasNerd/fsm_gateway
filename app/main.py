@@ -246,7 +246,7 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
     errors = exc.errors()
     err_msgs = []
     for err in errors:
-        loc = " -> ".join(str(l) for l in err.get("loc", []))
+        loc = " -> ".join(str(part) for part in err.get("loc", []))
         msg = err.get("msg", "Ungültige Eingabe")
         err_msgs.append(f"{loc}: {msg}" if loc else msg)
     summary_msg = "; ".join(err_msgs) if err_msgs else "Validierungsfehler"

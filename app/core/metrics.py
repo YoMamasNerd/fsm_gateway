@@ -3,11 +3,11 @@
 from __future__ import annotations
 
 import asyncio
-from collections import deque
 import json
 import logging
 import sqlite3
 import time
+from collections import deque
 from datetime import datetime
 from pathlib import Path
 from typing import Any

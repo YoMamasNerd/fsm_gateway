@@ -11,6 +11,8 @@ main_router.include_router(api_v1_router)
 # (e.g. /fahrlehrer -> /v1/fahrlehrer, /kalender -> /v1/kalender, etc.)
 from app.api.dashboard import router as dashboard_router
 from app.api.v1.auth import router as direct_auth
+from app.api.v1.errors import alias_router as direct_fehler
+from app.api.v1.errors import router as direct_errors
 from app.api.v1.fahrlehrer import router as direct_fahrlehrer
 from app.api.v1.finanzen import router as direct_finanzen
 from app.api.v1.fuhrpark import router as direct_fuhrpark
@@ -21,7 +23,6 @@ from app.api.v1.preislisten import router as direct_preislisten
 from app.api.v1.schueler import router as direct_schueler
 from app.api.v1.stammdaten import router as direct_stammdaten
 from app.api.v1.statistiken import router as direct_statistiken
-from app.api.v1.errors import alias_router as direct_fehler, router as direct_errors
 from app.api.v1.theorietermine import router as direct_theorietermine
 from app.api.v1.webhooks import router as direct_webhooks
 

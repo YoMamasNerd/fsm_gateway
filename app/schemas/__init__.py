@@ -1,6 +1,12 @@
 """Schemas package export."""
 
 from app.schemas.auth import AuthStatusResponse, LoginRequest, LoginResponse
+from app.schemas.errors import (
+    ClearErrorsResponse,
+    ErrorEntry,
+    ErrorsResponse,
+    LastErrorResponse,
+)
 from app.schemas.fahrlehrer import FahrlehrerItem, FahrlehrerListResponse
 from app.schemas.finanzen import (
     FahrstundeItem,
@@ -22,12 +28,6 @@ from app.schemas.schueler import (
     SchuelerKurzItem,
     SchuelerSucheRequest,
     SchuelerSucheResponse,
-)
-from app.schemas.errors import (
-    ClearErrorsResponse,
-    ErrorEntry,
-    ErrorsResponse,
-    LastErrorResponse,
 )
 from app.schemas.webhooks import SumUpWebhookEvent, SumUpWebhookResponse
 
@@ -54,4 +54,8 @@ __all__ = [
     "ZahlungResponse",
     "SumUpWebhookEvent",
     "SumUpWebhookResponse",
+    "ClearErrorsResponse",
+    "ErrorEntry",
+    "ErrorsResponse",
+    "LastErrorResponse",
 ]

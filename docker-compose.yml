@@ -28,6 +28,7 @@ services:
       - GATEWAY_HOST=0.0.0.0
       - GATEWAY_PORT=8090
       - VALKEY_URL=redis://fsm-valkey:6379/0
+      - CALENDAR_SWR_MAX_AGE_SECONDS=43200
     depends_on:
       fsm-valkey:
         condition: service_healthy

@@ -1,6 +1,6 @@
 services:
   fsm-valkey:
-    image: valkey/valkey:8-alpine
+    image: valkey/valkey:8-alpine@sha256:cfb2aa4c8352930130fd45eb231a57310ac326d7323edae12b384b9270c46dda
     container_name: fsm-valkey
     restart: unless-stopped
     command: valkey-server --appendonly yes --save 60 1 --maxmemory 256mb --maxmemory-policy volatile-lru

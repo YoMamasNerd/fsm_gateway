@@ -45,7 +45,7 @@ Dieses Dokument dient als zentrale Referenz für alle bekannten und erfassten Sc
 | **Prüfungsstatistik (FL)**| `/v2/statistiken/pruefungen/lehrer`| `GET` | `GET /v1/statistiken/pruefungen/lehrer`| ✅ Live (30m Cache) |
 | **Prüfungsstatistik (Kl)**| `/v2/statistiken/pruefungen/klassen`| `GET`| `GET /v1/statistiken/pruefungen/klassen`| ✅ Live (30m Cache) |
 | **Kassenbücher** | `/v1/kassenbuecher` | `GET` | `GET /v1/kassenbuecher` | ✅ Live (5m Cache) |
-| **Kontrolle (FL/Tag)** | `/v1/leistungen/kontrolle/{Y}/{M}/{D}?fidlehrer=` + `/v1/lehrer/arbeitszeit/{id}` | `GET` | `GET /v1/kontrolle/{fl_id}?datum=YYYY-MM-DD` | ✅ Live (1m Cache) |
+| **Kontrolle (FL/Tag)** | `mapi: /v1/leistungen/kontrolle/{Y}/{M}/{D}?skipDeleted=true&fidlehrer=` + `mapi: /v1/lehrer/arbeitszeit/{id}?date=` | `GET` | `GET /v1/kontrolle/{fl_id}?datum=YYYY-MM-DD[&refresh=1]` | ✅ Live (1m Cache) |
 | **Kassenbuchungen** | `/v1/kassenbuecher/kassenbuchungen`| `GET` | `GET /v1/kassenbuecher/{id}/buchungen`| ✅ Live (5m Cache) |
 | **Webhooks** | `/v1/webhooks/sumup` (extern) | `POST` | `POST /v1/webhooks/sumup` | ✅ Live (Idempotenz) |
 

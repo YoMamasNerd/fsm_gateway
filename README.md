@@ -44,8 +44,60 @@ Zentraler **FastAPI-Microservice** zur performanten und typisierten Anbindung de
 | `GET /v1/schueler/{student_uuid}/fahrstunden` | `GET` | Fahrstunden-Historie & Bezahlstatus |
 | `GET /v1/schueler/{student_uuid}/leistungen` | `GET` | Leistungskonto, Grundbetrag, Gebühren & Zahlungen |
 | `POST /v1/schueler/{student_uuid}/zahlung` | `POST` | Bucht Zahlung in FSM ein (Kartenzahlung/SumUp/Bar) |
+| `GET /v1/kontrolle/{fahrlehrer_id}` | `GET` | Verbuchte Leistungen eines Fahrlehrers für einen Tag (FSM „Kontrolle"-Ansicht) — Details siehe unten |
 | `POST /v1/webhooks/sumup` | `POST` | SumUp Webhook zur automatischen Zahlungseinbuchung |
 | `GET /health` | `GET` | System-Healthcheck & Cache-Status |
+
+---
+
+## 📋 Kontrolle-Endpoint (verbuchte Leistungen je Fahrlehrer/Tag)
+
+**Route:** `GET /v1/kontrolle/{fahrlehrer_id}?datum=YYYY-MM-DD[&refresh=1]`
+
+Liefert den **Leistungs-Layer** eines Fahrlehrers für einen konkreten Tag — also das, was in der
+FSM-Web-App unter „Kontrolle" steht: alle **verbuchten Leistungen** (nicht Kalender-Termine!).
+Beide Layer divergieren regelmäßig: Eine Fahrstunde kann im Kalender als `ist_blocker` stehen,
+aber als Leistung gebucht sein — oder umgekehrt.
+
+**Für die FSM-Tageslimit-Prüfung (600 Minuten) ist dieser Endpoint die korrekte Datenbasis:**
+FSM prüft bei Buchungen `arbeitszeit.praxis + arbeitszeit.sonstiges + neue Buchung` gegen 600.
+
+### Parameter
+
+| Param | Pflicht | Beschreibung |
+|---|---|---|
+| `datum` | ✅ | `YYYY-MM-DD` (auch `YYYY-MM-DDTHH:MM:SS` möglich) |
+| `refresh` | ❌ | `refresh=1` umgeht den Cache (60s TTL, `KONTROLLE_CACHE_TTL_SECONDS`) |
+
+### Response
+
+```json
+{
+  "fahrlehrer_id": "38b85e04-…",
+  "datum": "2026-07-30",
+  "leistungen": [ { "id": "…", "leistungsart": "ST", "minuten": 45.0, "schueler_name": "…", "datum": "2026-07-30T04:45:00" } ],
+  "count": 40,
+  "minuten_praktisch": 365.0,
+  "minuten_sonstige": 540.0,
+  "minuten_total": 905.0,
+  "arbeitszeit": { "lehrer": "Hampel Marten", "praxis": 275.0, "sonstiges": 270.0, "total": 0.0 },
+  "cache_hit": false
+}
+```
+
+- `minuten_*` = Summen über die verbuchten Leistungen (Leistungs-Layer)
+- `arbeitszeit` = FSMs eigene Tagesauswertung (`/v1/lehrer/arbeitszeit/{id}`) — **identische Basis
+  wie die 600-Min-Prüfung bei Buchungen**; kann bei API-Ausfall `null` sein (Kontrolle liefert dann trotzdem)
+
+### Wichtig für Agenten
+
+- **Cache:** 60s TTL mit `X-Cache-Hit`-Header. Nach frischen Buchungen ggf. `refresh=1` mitsenden.
+- **FSM-Host:** Die Kontrolle-Routen existieren **nur auf dem Portal-Host** `mapi.fahrschulmanager.de`
+  (`FSM_MAPI_URL`), nicht auf `api.fahrschulmanager.de` — das regelt der Gateway intern.
+- **Zeitraum:** Der Endpoint ist tageweise. Für einen Zeitraum den Endpoint pro Tag aufrufen
+  (Cache macht wiederholte Abfragen billig).
+- **Typischer Anwendungsfall:** Tageslimit-Check vor Theorie-Buchung
+  (`minuten_total + neue Theorie-Minuten > 600` ⇒ FSM wird die Buchung ablehnen).
 
 ---
 

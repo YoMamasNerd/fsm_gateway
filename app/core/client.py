@@ -557,6 +557,36 @@ class FSMClient:
         res = await self.request("GET", path, params=params)
         return res if isinstance(res, list) else []
 
+    async def get_kontrolle(
+        self,
+        fahrlehrer_id: str,
+        datum: dt.date | dt.datetime | str,
+    ) -> list[dict[str, Any]]:
+        """Retrieves booked services (Leistungen) for an instructor on a given day.
+
+        Mirrors the FSM portal's "Kontrolle" view, i.e. the layer FSM itself uses
+        for its daily workload (Arbeitszeit) validation when booking services.
+        """
+        d = _normalize_iso_datetime(datum, is_end=False)
+        year, month, day = str(d)[:10].split("-")
+        path = f"v1/leistungen/kontrolle/{int(year)}/{int(month)}/{int(day)}"
+        params = {"skipDeleted": "true", "fidlehrer": str(fahrlehrer_id).strip()}
+        res = await self.request("GET", path, params=params)
+        return res if isinstance(res, list) else []
+
+    async def get_arbeitszeit(
+        self,
+        fahrlehrer_id: str,
+        datum: dt.date | dt.datetime | str,
+    ) -> dict[str, Any]:
+        """Retrieves FSM's own daily workload summary (praxis/sonstiges minutes) for an instructor."""
+        d = _normalize_iso_datetime(datum, is_end=False)
+        iso_dt = f"{str(d)[:10]}T10:00:00.000Z"
+        path = f"v1/lehrer/arbeitszeit/{str(fahrlehrer_id).strip()}"
+        params = {"date": iso_dt}
+        res = await self.request("GET", path, params=params)
+        return res if isinstance(res, dict) else {}
+
     async def create_termin(
         self,
         fahrlehrer_id: str,
@@ -1476,7 +1506,14 @@ class FSMClient:
             # den ersten Kurstag vorverlegen (falls bekannt, sonst auf das
             # Stundendatum selbst) und einmal erneut versuchen.
             if "Anmeldedatum" in str(exc):
-                target_date_str = str(kurs_start_datum or datum)[:10]
+                # Ziel: frühestes Datum, das die FSM-Regel sicher erfüllt -
+                # das frühere von Kursbeginn und Stundendatum (eine Lektion kann
+                # vor dem nominellen Kursbeginn liegen, z.B. vorgezogene Theorie).
+                stunden_datum = str(datum)[:10]
+                if kurs_start_datum and str(kurs_start_datum)[:10] < stunden_datum:
+                    target_date_str = str(kurs_start_datum)[:10]
+                else:
+                    target_date_str = stunden_datum
                 logger.warning(
                     "FSM verweigerte Theoriestunde für %s wegen Anmeldedatum, "
                     "versuche Anmeldedatum auf %s vorzuverlegen: %s",

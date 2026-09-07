@@ -1135,6 +1135,106 @@ class FSMClient:
             logger.error("Fehler beim Aktualisieren des Anmeldedatums für %s: %s", student_uuid, exc)
             return False
 
+    async def update_schueler_klasse(
+        self,
+        student_uuid: str,
+        b197: bool = True,
+        target_klasse: str | None = None,
+    ) -> dict[str, Any]:
+        """Aktualisiert die Führerscheinklasse eines Schülers in FSM Cloud via PUT v1/schueler.
+
+        Unterstützt insbesondere das Upgrade von Klasse B auf B197 (Schlüsselzahl 197).
+        """
+        kartei = await self.request("GET", f"v1/schueler/{student_uuid}")
+        if not isinstance(kartei, dict):
+            raise FsmException(f"Schüler {student_uuid} konnte nicht geladen werden.")
+
+        is_b197 = b197 or (str(target_klasse or "").upper() == "B197")
+
+        if is_b197:
+            kartei["b197"] = True
+
+            # 1. In erwerbendeKlassen Schlüsselzahl 197 hinterlegen
+            erw = kartei.get("erwerbendeKlassen")
+            if isinstance(erw, list):
+                for entry in erw:
+                    if isinstance(entry, dict):
+                        sz = entry.get("schluesselzahlen")
+                        if not isinstance(sz, list):
+                            sz = []
+                        if "197" not in [str(x) for x in sz]:
+                            sz.append("197")
+                        entry["schluesselzahlen"] = sz
+
+            # 2. In ausbildungen Schlüsselzahl 197 und ggf. klasseAbkuerzung anpassen
+            ausb = kartei.get("ausbildungen")
+            if isinstance(ausb, list):
+                for a in ausb:
+                    if isinstance(a, dict):
+                        sz = a.get("schluesselzahlen")
+                        if not isinstance(sz, list):
+                            sz = []
+                        if "197" not in [str(x) for x in sz]:
+                            sz.append("197")
+                        a["schluesselzahlen"] = sz
+                        k_abk = str(a.get("klasseAbkuerzung") or a.get("klasseKennung") or a.get("klasse") or "")
+                        if "B" in k_abk and "197" not in k_abk:
+                            a["klasseAbkuerzung"] = "B(197)"
+
+            # 3. Im Root-Feld 'klassen'
+            curr_kl = str(kartei.get("klassen") or "").strip()
+            if "197" not in curr_kl:
+                if "B" in curr_kl:
+                    kartei["klassen"] = re.sub(r"\bB\b", "B(197)", curr_kl)
+                elif curr_kl:
+                    kartei["klassen"] = f"{curr_kl}, B(197)"
+                else:
+                    kartei["klassen"] = "B(197)"
+        else:
+            kartei["b197"] = False
+            # Schlüsselzahl 197 entfernen
+            erw = kartei.get("erwerbendeKlassen")
+            if isinstance(erw, list):
+                for entry in erw:
+                    if isinstance(entry, dict):
+                        sz = entry.get("schluesselzahlen")
+                        if isinstance(sz, list):
+                            entry["schluesselzahlen"] = [str(x) for x in sz if str(x) != "197"]
+
+            ausb = kartei.get("ausbildungen")
+            if isinstance(ausb, list):
+                for a in ausb:
+                    if isinstance(a, dict):
+                        sz = a.get("schluesselzahlen")
+                        if isinstance(sz, list):
+                            a["schluesselzahlen"] = [str(x) for x in sz if str(x) != "197"]
+                        if a.get("klasseAbkuerzung") == "B(197)":
+                            a["klasseAbkuerzung"] = "B"
+
+            curr_kl = str(kartei.get("klassen") or "").strip()
+            kartei["klassen"] = curr_kl.replace("B(197)", "B")
+
+        # In FSM Cloud persistieren via PUT v1/schueler
+        res = await self.request("PUT", "v1/schueler", json_data={"viewModel": kartei})
+
+        # Relevante Caches leeren
+        await cache.delete_prefix(f"fsm:schueler:{student_uuid}")
+        await cache.delete_prefix(f"schueler:details:{student_uuid}")
+        await cache.delete_prefix(f"fsm:ausbildung:{student_uuid}")
+        await cache.delete_prefix(f"schueler:ausbildung:{student_uuid}")
+        await cache.delete_prefix(f"fsm:schueler:kartei:{student_uuid}")
+        await cache.delete_prefix(f"schueler:kartei:{student_uuid}")
+
+        final_klasse = kartei.get("klassen") or ("B(197)" if is_b197 else "B")
+        logger.info("FSM Klasse für Schüler %s erfolgreich auf %s aktualisiert.", student_uuid, final_klasse)
+        return {
+            "success": True,
+            "student_uuid": student_uuid,
+            "klasse": final_klasse,
+            "b197": is_b197,
+            "result": res,
+        }
+
     async def get_ausbildungen(self, student_uuid: str, fresh: bool = False) -> list[dict[str, Any]]:
         """Liefert Ausbildungsstand & Sonderfahrten-Zähler für einen Schüler."""
         cache_key = f"fsm:ausbildung:{student_uuid}"

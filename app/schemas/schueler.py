@@ -62,3 +62,20 @@ class SchuelerDetails(BaseModel):
     klassen: Any | None = Field(default=None, description="Driving license classes")
     gesperrt: bool | None = Field(default=False, description="Whether student is locked")
     raw_data: dict[str, Any] = Field(default_factory=dict, description="Complete raw FSM dictionary")
+
+
+class UpdateStudentKlasseRequest(BaseModel):
+    """Payload to update student's driving license class / addenda in FSM."""
+
+    b197: bool = Field(default=True, description="Whether B197 (Schlüsselzahl 197) is active")
+    klasse: str | None = Field(default=None, description="Optional target class string (e.g. 'B197' or 'B')")
+
+
+class UpdateStudentKlasseResponse(BaseModel):
+    """Response after updating student's license class."""
+
+    success: bool = Field(..., description="Whether update succeeded")
+    student_uuid: str = Field(..., description="Student UUID")
+    klasse: str = Field(..., description="Updated class string in FSM (e.g. 'B(197)')")
+    b197: bool = Field(..., description="Whether B197 is active")
+    message: str = Field(..., description="Status message")

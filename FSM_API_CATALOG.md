@@ -29,6 +29,7 @@ Dieses Dokument dient als zentrale Referenz für alle bekannten und erfassten Sc
 | **Termine (Delete)** | `/v1/termine/{termin_id}` | `DELETE` | `DELETE /v1/termine/{termin_id}`| ✅ Live (Write-Through) |
 | **Schülersuche** | `/v3/schueler/suche` | `GET/POST` | `GET/POST /v1/schueler/suche` | ✅ Live (Kein Cache) |
 | **Schülerstammdaten** | `/v1/schueler/kartei/{id}` | `GET` | `GET /v1/schueler/{id}` | ✅ Live (6h Cache) |
+| **Klasse bearbeiten** | `/v1/schueler` | `PUT` | `PUT /v1/schueler/{id}/klasse` | ✅ Live (Write-Through, z.B. B -> B197) |
 | **Ausbildungsstand** | `/v1/ausbildungen/kunde/{id}` | `GET` | `GET /v1/schueler/{id}/ausbildung`| ✅ Live (1h Cache) |
 | **Digitale Karteikarte**| `/v1/schueler/kartei/{id}` | `GET` | `GET /v1/schueler/{id}/kartei` | ✅ Live (1h Cache) |
 | **Theoriestunden** | `/v2/theoriestunden/kunde/{id}`| `GET` | `GET /v1/schueler/{id}/theorie` | ✅ Live (1h Cache) |

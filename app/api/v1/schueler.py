@@ -17,6 +17,8 @@ from app.schemas.schueler import (
     SchuelerKurzItem,
     SchuelerSucheRequest,
     SchuelerSucheResponse,
+    UpdateStudentKlasseRequest,
+    UpdateStudentKlasseResponse,
 )
 from app.schemas.theorie import (
     TheoriestundeCreateRequest,
@@ -603,4 +605,38 @@ async def get_schueler_preise(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Preise-Abruf fehlgeschlagen: {exc}",
+        )
+
+
+@router.put(
+    "/{student_uuid}/klasse",
+    response_model=UpdateStudentKlasseResponse,
+    summary="Führerscheinklasse des Schülers aktualisieren (z.B. Upgrade auf B197)",
+    description="Aktualisiert die Führerscheinklasse und Schlüsselzahlen (z.B. B -> B197) in FSM Cloud.",
+)
+async def update_schueler_klasse_endpoint(
+    payload: UpdateStudentKlasseRequest,
+    student_uuid: str = Path(..., description="FSM Schüler-UUID"),
+) -> UpdateStudentKlasseResponse:
+    clean_uuid = student_uuid.strip()
+    try:
+        res = await fsm_client.update_schueler_klasse(
+            student_uuid=clean_uuid,
+            b197=payload.b197,
+            target_klasse=payload.klasse,
+        )
+        return UpdateStudentKlasseResponse(
+            success=True,
+            student_uuid=clean_uuid,
+            klasse=res.get("klasse") or ("B(197)" if payload.b197 else "B"),
+            b197=res.get("b197", payload.b197),
+            message="Klasse in FSM Cloud erfolgreich aktualisiert.",
+        )
+    except (FsmException, HTTPException):
+        raise
+    except Exception as exc:
+        logger.error("Fehler beim Aktualisieren der Klasse für %s: %s", clean_uuid, exc)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Klassen-Aktualisierung fehlgeschlagen: {exc}",
         )

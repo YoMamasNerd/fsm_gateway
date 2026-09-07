@@ -14,6 +14,10 @@ class Settings(BaseSettings):
         default="https://api.fahrschulmanager.de",
         description="FSM Base API URL (without trailing slash)",
     )
+    FSM_MAPI_URL: str = Field(
+        default="https://mapi.fahrschulmanager.de",
+        description="FSM Portal (Web-App) API host - some portal-only routes exist only here",
+    )
     FSM_AUTH_URL: str = Field(
         default="https://login.fahren-lernen.de",
         description="FSM SSO / Identity Provider URL",

@@ -523,6 +523,77 @@ async def test_theoriestunde_anderer_400_fehler_wird_nicht_verschluckt():
 
 
 @pytest.mark.asyncio
+async def test_theoriestunde_vor_kursbeginn_setzt_anmeldedatum_auf_stundendatum():
+    """Live-Fund 07/2026: Motorradkurs start_datum=31.07., Thema 1 liegt am 30.07.
+    Der Self-Heal setzte das Anmeldedatum auf kurs_start_datum (31.07.) - das liegt
+    NACH dem Stundendatum, der Retry scheitert zwingend. Erwartung: frühestes Datum
+    von Kursbeginn und Stundendatum, hier also der 30.07."""
+    transport = ASGITransport(app=app, client=("172.18.0.5", 1234))
+    async with AsyncClient(transport=transport, base_url="http://test", headers=CLIENT_IP_HEADER) as client:
+        sample_voller_datensatz = {
+            "id": "stu-moto",
+            "vorname": "Vorgezogen",
+            "nachname": "Theorie",
+            "anmeldedatum": "2026-08-01T00:00:00+02:00",
+            "fidAbrechnungsart": 1,
+            "bankverbindung": {"iban": None},
+            "skipDuplicateCheck": True,
+            "kundenpreise": [{"id": "stu-moto", "fidkunde": "stu-moto", "fidpreisliste": "pl-1", "lfdnr": 1}],
+        }
+
+        with respx.mock(assert_all_called=True) as respx_mock:
+            respx_mock.get("https://api.fahrschulmanager.de/v1/schueler/stu-moto").respond(
+                status_code=200, json=sample_voller_datensatz
+            )
+            respx_mock.post("https://api.fahrschulmanager.de/v1/theoriestunden").mock(
+                side_effect=[
+                    httpx.Response(
+                        400,
+                        json={
+                            "responses": [
+                                {
+                                    "errorMessage": (
+                                        "Das Datum der Theoriestunde darf nicht vor dem "
+                                        "Anmeldedatum des Schülers liegen.\n"
+                                        "Soll das Anmeldedatum auf den 30.07.2026 geändert werden?"
+                                    )
+                                }
+                            ]
+                        },
+                    ),
+                    httpx.Response(
+                        201, json={"viewModel": [{"id": "th-neu-2", "fidKunde": "stu-moto"}]}
+                    ),
+                ]
+            )
+            put_route = respx_mock.put("https://api.fahrschulmanager.de/v1/schueler").respond(
+                status_code=200, json={"viewModel": sample_voller_datensatz}
+            )
+
+            payload = {
+                "fidfiliale": "fil-1",
+                "filiale": "Chemnitzer Str.",
+                "fidFahrlehrer": "fl-1",
+                "fahrlehrer": "Marten Hampel",
+                "fidSystemtheoriegruppe": "*",
+                "kapitel": "1 Persönliche Voraussetzungen",
+                "datum": "2026-07-30T00:00:00",
+                "von": "2026-07-30T17:00:00",
+                "bis": "2026-07-30T18:30:00",
+                "minuten": 90,
+                "kurs_start_datum": "2026-07-31",
+            }
+            res = await client.post("/v1/schueler/stu-moto/theorie", json=payload)
+
+            assert res.status_code == 200
+            assert res.json()["success"] is True
+            # Anmeldedatum auf das Stundendatum (30.07.) vorverlegt, nicht auf den
+            # kurs_start_datum (31.07.), der nach dem Stundendatum liegt
+            sent_kartei = json.loads(put_route.calls.last.request.content)["viewModel"]
+            assert sent_kartei["anmeldedatum"].startswith("2026-07-30")
+
+
+@pytest.mark.asyncio
 async def test_tagesbelegung_endpoint():
     transport = ASGITransport(app=app, client=("172.18.0.5", 1234))
     async with AsyncClient(transport=transport, base_url="http://test", headers=CLIENT_IP_HEADER) as client:

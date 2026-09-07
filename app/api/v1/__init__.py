@@ -10,6 +10,7 @@ from app.api.v1.finanzen import router as finanzen_router
 from app.api.v1.fuhrpark import router as fuhrpark_router
 from app.api.v1.kalender import router as kalender_router
 from app.api.v1.kassenbuch import router as kassenbuch_router
+from app.api.v1.kontrolle import router as kontrolle_router
 from app.api.v1.kurse import router as kurse_router
 from app.api.v1.preislisten import router as preislisten_router
 from app.api.v1.schueler import router as schueler_router
@@ -31,6 +32,7 @@ api_v1_router.include_router(preislisten_router)
 api_v1_router.include_router(stammdaten_router)
 api_v1_router.include_router(statistiken_router)
 api_v1_router.include_router(kassenbuch_router)
+api_v1_router.include_router(kontrolle_router)
 api_v1_router.include_router(webhooks_router)
 api_v1_router.include_router(errors_router)
 api_v1_router.include_router(fehler_router)

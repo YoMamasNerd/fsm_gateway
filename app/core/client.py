@@ -399,12 +399,14 @@ class FSMClient:
         data: Any = None,
         retry_on_401: bool = True,
         headers_override: dict[str, str] | None = None,
+        base_url_override: str | None = None,
     ) -> Any:
         """Executes an authenticated HTTP request to FSM with transparent 401 re-login."""
         client = await self.get_http_client()
 
         normalized_path = path.lstrip("/")
-        url = f"{self.base_url}/{normalized_path}"
+        base = (base_url_override or self.base_url).rstrip("/")
+        url = f"{base}/{normalized_path}"
 
         headers, token_used = await self._build_headers()
         if headers_override:
@@ -571,7 +573,7 @@ class FSMClient:
         year, month, day = str(d)[:10].split("-")
         path = f"v1/leistungen/kontrolle/{int(year)}/{int(month)}/{int(day)}"
         params = {"skipDeleted": "true", "fidlehrer": str(fahrlehrer_id).strip()}
-        res = await self.request("GET", path, params=params)
+        res = await self.request("GET", path, params=params, base_url_override=settings.FSM_MAPI_URL)
         return res if isinstance(res, list) else []
 
     async def get_arbeitszeit(
@@ -584,7 +586,7 @@ class FSMClient:
         iso_dt = f"{str(d)[:10]}T10:00:00.000Z"
         path = f"v1/lehrer/arbeitszeit/{str(fahrlehrer_id).strip()}"
         params = {"date": iso_dt}
-        res = await self.request("GET", path, params=params)
+        res = await self.request("GET", path, params=params, base_url_override=settings.FSM_MAPI_URL)
         return res if isinstance(res, dict) else {}
 
     async def create_termin(

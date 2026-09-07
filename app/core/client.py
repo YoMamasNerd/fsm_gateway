@@ -1506,7 +1506,14 @@ class FSMClient:
             # den ersten Kurstag vorverlegen (falls bekannt, sonst auf das
             # Stundendatum selbst) und einmal erneut versuchen.
             if "Anmeldedatum" in str(exc):
-                target_date_str = str(kurs_start_datum or datum)[:10]
+                # Ziel: frühestes Datum, das die FSM-Regel sicher erfüllt -
+                # das frühere von Kursbeginn und Stundendatum (eine Lektion kann
+                # vor dem nominellen Kursbeginn liegen, z.B. vorgezogene Theorie).
+                stunden_datum = str(datum)[:10]
+                if kurs_start_datum and str(kurs_start_datum)[:10] < stunden_datum:
+                    target_date_str = str(kurs_start_datum)[:10]
+                else:
+                    target_date_str = stunden_datum
                 logger.warning(
                     "FSM verweigerte Theoriestunde für %s wegen Anmeldedatum, "
                     "versuche Anmeldedatum auf %s vorzuverlegen: %s",

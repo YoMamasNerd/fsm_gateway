@@ -56,10 +56,10 @@ async def test_kontrolle_endpoint_cache_and_sums():
     async with AsyncClient(transport=transport, base_url="http://test", headers=CLIENT_IP_HEADER) as client:
         with respx.mock(assert_all_called=False) as respx_mock:
             respx_mock.get(
-                "https://api.fahrschulmanager.de/v1/leistungen/kontrolle/2026/7/30"
+                "https://mapi.fahrschulmanager.de/v1/leistungen/kontrolle/2026/7/30"
             ).respond(status_code=200, json=KONTROLLE_ROWS)
             respx_mock.get(
-                f"https://api.fahrschulmanager.de/v1/lehrer/arbeitszeit/{FL_ID}"
+                f"https://mapi.fahrschulmanager.de/v1/lehrer/arbeitszeit/{FL_ID}"
             ).respond(status_code=200, json=ARBEITSZEIT_ROW)
 
             # 1. Aufruf: Cache Miss
@@ -94,10 +94,10 @@ async def test_kontrolle_endpoint_arbeitszeit_ausfall_toleriert():
     async with AsyncClient(transport=transport, base_url="http://test", headers=CLIENT_IP_HEADER) as client:
         with respx.mock(assert_all_called=True) as respx_mock:
             respx_mock.get(
-                "https://api.fahrschulmanager.de/v1/leistungen/kontrolle/2026/7/30"
+                "https://mapi.fahrschulmanager.de/v1/leistungen/kontrolle/2026/7/30"
             ).respond(status_code=200, json=KONTROLLE_ROWS)
             respx_mock.get(
-                f"https://api.fahrschulmanager.de/v1/lehrer/arbeitszeit/{FL_ID}"
+                f"https://mapi.fahrschulmanager.de/v1/lehrer/arbeitszeit/{FL_ID}"
             ).respond(status_code=500, json={"error": "boom"})
 
             res = await client.get(f"/v1/kontrolle/{FL_ID}", params={"datum": "2026-07-30"})

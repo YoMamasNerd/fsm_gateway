@@ -614,3 +614,45 @@ async def test_tagesbelegung_endpoint():
             assert data["datum"] == "2026-08-25"
             assert data["gesamt"] == 14
             assert data["praxis"] == 10
+
+
+@pytest.mark.asyncio
+async def test_update_schueler_klasse_endpoint():
+    transport = ASGITransport(app=app, client=("172.18.0.5", 1234))
+    async with AsyncClient(transport=transport, base_url="http://test", headers=CLIENT_IP_HEADER) as client:
+        sample_schueler = {
+            "id": "stu-b-to-b197",
+            "vorname": "Constantin",
+            "nachname": "Jäger",
+            "b197": False,
+            "klassen": "B",
+            "erwerbendeKlassen": [{"fidKlasse": "202a7f8c-e087-41de-ba6b-220d0527adf5", "schluesselzahlen": []}],
+            "ausbildungen": [{"id": "ausb-1", "fidklasse": "202a7f8c-e087-41de-ba6b-220d0527adf5", "klasseKennung": "B", "schluesselzahlen": []}],
+        }
+
+        with respx.mock(assert_all_called=True) as respx_mock:
+            respx_mock.get("https://api.fahrschulmanager.de/v1/schueler/stu-b-to-b197").respond(
+                status_code=200, json=sample_schueler
+            )
+            put_mock = respx_mock.put("https://api.fahrschulmanager.de/v1/schueler").respond(
+                status_code=200, json={"viewModel": {"id": "stu-b-to-b197"}}
+            )
+
+            res = await client.put(
+                "/v1/schueler/stu-b-to-b197/klasse",
+                json={"b197": True, "klasse": "B197"},
+            )
+            assert res.status_code == 200
+            data = res.json()
+            assert data["success"] is True
+            assert data["student_uuid"] == "stu-b-to-b197"
+            assert data["b197"] is True
+            assert "B(197)" in data["klasse"]
+
+            assert put_mock.called
+            sent_vm = json.loads(put_mock.calls.last.request.content)["viewModel"]
+            assert sent_vm["b197"] is True
+            assert sent_vm["klassen"] == "B(197)"
+            assert "197" in sent_vm["erwerbendeKlassen"][0]["schluesselzahlen"]
+            assert "197" in sent_vm["ausbildungen"][0]["schluesselzahlen"]
+            assert sent_vm["ausbildungen"][0]["klasseAbkuerzung"] == "B(197)"

@@ -106,6 +106,10 @@ class Settings(BaseSettings):
         default=300,
         description="TTL in seconds for cashbook data cache (default: 5 minutes / 300s)",
     )
+    KONTROLLE_CACHE_TTL_SECONDS: int = Field(
+        default=60,
+        description="TTL in seconds for instructor daily services (Kontrolle) cache (default: 1 minute / 60s)",
+    )
     HTTP_TIMEOUT: float = Field(
         default=20.0,
         description="Timeout for external HTTP requests in seconds",

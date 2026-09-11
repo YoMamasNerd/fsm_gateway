@@ -656,3 +656,51 @@ async def test_update_schueler_klasse_endpoint():
             assert "197" in sent_vm["erwerbendeKlassen"][0]["schluesselzahlen"]
             assert "197" in sent_vm["ausbildungen"][0]["schluesselzahlen"]
             assert sent_vm["ausbildungen"][0]["klasseAbkuerzung"] == "B(197)"
+
+
+@pytest.mark.asyncio
+async def test_update_schueler_fahrlehrer_endpoint():
+    transport = ASGITransport(app=app, client=("172.18.0.5", 1234))
+    async with AsyncClient(transport=transport, base_url="http://test", headers=CLIENT_IP_HEADER) as client:
+        sample_schueler = {
+            "id": "stu-fl-update",
+            "vorname": "Mia",
+            "nachname": "Liebs",
+            "fidFahrlehrer1": None,
+            "fahrlehrer1": None,
+            "fidFahrlehrer2": None,
+            "fahrlehrer2": None,
+        }
+
+        with respx.mock(assert_all_called=True) as respx_mock:
+            respx_mock.get("https://api.fahrschulmanager.de/v1/schueler/stu-fl-update").respond(
+                status_code=200, json=sample_schueler
+            )
+            put_mock = respx_mock.put("https://api.fahrschulmanager.de/v1/schueler").respond(
+                status_code=200, json={"viewModel": {"id": "stu-fl-update"}}
+            )
+
+            res = await client.put(
+                "/v1/schueler/stu-fl-update/fahrlehrer",
+                json={
+                    "fidFahrlehrer1": "fl-uuid-1",
+                    "fahrlehrer1": "Jonas Eisele",
+                    "fidFahrlehrer2": "fl-uuid-2",
+                    "fahrlehrer2": "Marten Hampel",
+                },
+            )
+            assert res.status_code == 200
+            data = res.json()
+            assert data["success"] is True
+            assert data["student_uuid"] == "stu-fl-update"
+            assert data["fidFahrlehrer1"] == "fl-uuid-1"
+            assert data["fahrlehrer1"] == "Jonas Eisele"
+            assert data["fidFahrlehrer2"] == "fl-uuid-2"
+            assert data["fahrlehrer2"] == "Marten Hampel"
+
+            assert put_mock.called
+            sent_vm = json.loads(put_mock.calls.last.request.content)["viewModel"]
+            assert sent_vm["fidFahrlehrer1"] == "fl-uuid-1"
+            assert sent_vm["fahrlehrer1"] == "Jonas Eisele"
+            assert sent_vm["fidFahrlehrer2"] == "fl-uuid-2"
+            assert sent_vm["fahrlehrer2"] == "Marten Hampel"

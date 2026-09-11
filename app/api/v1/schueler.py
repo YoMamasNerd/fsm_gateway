@@ -17,6 +17,8 @@ from app.schemas.schueler import (
     SchuelerKurzItem,
     SchuelerSucheRequest,
     SchuelerSucheResponse,
+    UpdateStudentFahrlehrerRequest,
+    UpdateStudentFahrlehrerResponse,
     UpdateStudentKlasseRequest,
     UpdateStudentKlasseResponse,
 )
@@ -640,3 +642,42 @@ async def update_schueler_klasse_endpoint(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Klassen-Aktualisierung fehlgeschlagen: {exc}",
         )
+
+
+@router.put(
+    "/{student_uuid}/fahrlehrer",
+    response_model=UpdateStudentFahrlehrerResponse,
+    summary="Zugewiesene Fahrlehrer (1 & 2) des Schülers aktualisieren",
+    description="Aktualisiert Fahrlehrer 1 (Hauptfahrlehrer) und Fahrlehrer 2 (Zweitfahrlehrer) in FSM Cloud via PUT v1/schueler.",
+)
+async def update_schueler_fahrlehrer_endpoint(
+    payload: UpdateStudentFahrlehrerRequest,
+    student_uuid: str = Path(..., description="FSM Schüler-UUID"),
+) -> UpdateStudentFahrlehrerResponse:
+    clean_uuid = student_uuid.strip()
+    try:
+        res = await fsm_client.update_schueler_fahrlehrer(
+            student_uuid=clean_uuid,
+            fid_fahrlehrer1=payload.fidFahrlehrer1,
+            fahrlehrer1=payload.fahrlehrer1,
+            fid_fahrlehrer2=payload.fidFahrlehrer2,
+            fahrlehrer2=payload.fahrlehrer2,
+        )
+        return UpdateStudentFahrlehrerResponse(
+            success=True,
+            student_uuid=clean_uuid,
+            fidFahrlehrer1=res.get("fidFahrlehrer1"),
+            fahrlehrer1=res.get("fahrlehrer1"),
+            fidFahrlehrer2=res.get("fidFahrlehrer2"),
+            fahrlehrer2=res.get("fahrlehrer2"),
+            message="Fahrlehrer-Zuweisung in FSM Cloud erfolgreich aktualisiert.",
+        )
+    except (FsmException, HTTPException):
+        raise
+    except Exception as exc:
+        logger.error("Fehler beim Aktualisieren der Fahrlehrer für %s: %s", clean_uuid, exc)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Fahrlehrer-Aktualisierung fehlgeschlagen: {exc}",
+        )
+

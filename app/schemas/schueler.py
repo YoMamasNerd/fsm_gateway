@@ -79,3 +79,24 @@ class UpdateStudentKlasseResponse(BaseModel):
     klasse: str = Field(..., description="Updated class string in FSM (e.g. 'B(197)')")
     b197: bool = Field(..., description="Whether B197 is active")
     message: str = Field(..., description="Status message")
+
+
+class UpdateStudentFahrlehrerRequest(BaseModel):
+    """Payload to update student's assigned driving instructors (Fahrlehrer 1 & 2) in FSM."""
+
+    fidFahrlehrer1: str | None = Field(default=None, description="UUID des Hauptfahrlehrers (Fahrlehrer 1)")
+    fahrlehrer1: str | None = Field(default=None, description="Name des Hauptfahrlehrers")
+    fidFahrlehrer2: str | None = Field(default=None, description="UUID des Zweitfahrlehrers (Fahrlehrer 2)")
+    fahrlehrer2: str | None = Field(default=None, description="Name des Zweitfahrlehrers")
+
+
+class UpdateStudentFahrlehrerResponse(BaseModel):
+    """Response after updating student's assigned driving instructors."""
+
+    success: bool = Field(..., description="Whether update succeeded")
+    student_uuid: str = Field(..., description="Student UUID")
+    fidFahrlehrer1: str | None = Field(default=None, description="UUID Fahrlehrer 1")
+    fahrlehrer1: str | None = Field(default=None, description="Name Fahrlehrer 1")
+    fidFahrlehrer2: str | None = Field(default=None, description="UUID Fahrlehrer 2")
+    fahrlehrer2: str | None = Field(default=None, description="Name Fahrlehrer 2")
+    message: str = Field(..., description="Status message")

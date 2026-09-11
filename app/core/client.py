@@ -1235,6 +1235,55 @@ class FSMClient:
             "result": res,
         }
 
+    async def update_schueler_fahrlehrer(
+        self,
+        student_uuid: str,
+        fid_fahrlehrer1: str | None = None,
+        fahrlehrer1: str | None = None,
+        fid_fahrlehrer2: str | None = None,
+        fahrlehrer2: str | None = None,
+    ) -> dict[str, Any]:
+        """Aktualisiert die zugewiesenen Fahrlehrer (Fahrlehrer 1 & 2) eines Schülers in FSM Cloud via PUT v1/schueler."""
+        kartei = await self.request("GET", f"v1/schueler/{student_uuid}")
+        if not isinstance(kartei, dict):
+            raise FsmException(f"Schüler {student_uuid} konnte nicht geladen werden.")
+
+        # Wenn Fahrlehrer 1 übergeben wird (auch leere Strings/None zum Leeren)
+        if fid_fahrlehrer1 is not None:
+            kartei["fidFahrlehrer1"] = fid_fahrlehrer1 or None
+            kartei["fahrlehrer1"] = fahrlehrer1 or None
+
+        if fid_fahrlehrer2 is not None:
+            kartei["fidFahrlehrer2"] = fid_fahrlehrer2 or None
+            kartei["fahrlehrer2"] = fahrlehrer2 or None
+
+        # In FSM Cloud persistieren via PUT v1/schueler
+        res = await self.request("PUT", "v1/schueler", json_data={"viewModel": kartei})
+
+        # Relevante Caches leeren
+        await cache.delete_prefix(f"fsm:schueler:{student_uuid}")
+        await cache.delete_prefix(f"schueler:details:{student_uuid}")
+        await cache.delete_prefix(f"fsm:schueler:kartei:{student_uuid}")
+        await cache.delete_prefix(f"schueler:kartei:{student_uuid}")
+
+        logger.info(
+            "Fahrlehrer für Schüler %s erfolgreich aktualisiert: FL1=%s (%s), FL2=%s (%s)",
+            student_uuid,
+            kartei.get("fahrlehrer1"),
+            kartei.get("fidFahrlehrer1"),
+            kartei.get("fahrlehrer2"),
+            kartei.get("fidFahrlehrer2"),
+        )
+        return {
+            "success": True,
+            "student_uuid": student_uuid,
+            "fidFahrlehrer1": kartei.get("fidFahrlehrer1"),
+            "fahrlehrer1": kartei.get("fahrlehrer1"),
+            "fidFahrlehrer2": kartei.get("fidFahrlehrer2"),
+            "fahrlehrer2": kartei.get("fahrlehrer2"),
+            "result": res,
+        }
+
     async def get_ausbildungen(self, student_uuid: str, fresh: bool = False) -> list[dict[str, Any]]:
         """Liefert Ausbildungsstand & Sonderfahrten-Zähler für einen Schüler."""
         cache_key = f"fsm:ausbildung:{student_uuid}"

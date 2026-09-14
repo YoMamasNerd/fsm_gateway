@@ -272,7 +272,7 @@ async def get_schueler_ausbildung(
                 AusbildungItem(
                     id=str(r.get("id") or clean_uuid),
                     fidklasse=r.get("fidklasse"),
-                    klasse_name=r.get("klasse") or r.get("klasse_name"),
+                    klasse_name=r.get("klasse") or r.get("klasse_name") or r.get("klasseAbkuerzung") or r.get("klasseKennung"),
                     fidschueler=r.get("fidschueler") or clean_uuid,
                     lfdnr=r.get("lfdnr") or 1,
                     uebungsfahrten=ueb,
@@ -357,7 +357,7 @@ async def get_schueler_karteikarte(
                         AusbildungItem(
                             id=str(r.get("id") or clean_uuid),
                             fidklasse=r.get("fidklasse"),
-                            klasse_name=r.get("klasse") or r.get("klasse_name"),
+                            klasse_name=r.get("klasse") or r.get("klasse_name") or r.get("klasseAbkuerzung") or r.get("klasseKennung"),
                             fidschueler=r.get("fidschueler") or clean_uuid,
                             lfdnr=r.get("lfdnr") or 1,
                             uebungsfahrten=ueb,

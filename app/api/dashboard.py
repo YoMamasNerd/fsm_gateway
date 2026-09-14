@@ -630,24 +630,24 @@ def _render_dashboard_html() -> str:
 <body class="pb-5">
 
     <!-- Top Navbar -->
-    <nav class="navbar navbar-custom sticky-top py-2 px-3 mb-4">
+    <nav class="navbar navbar-custom sticky-top py-2 px-2 px-sm-3 mb-3 mb-md-4">
         <div class="container-fluid d-flex justify-content-between align-items-center">
-            <div class="d-flex align-items-center gap-3">
+            <div class="d-flex align-items-center gap-2 gap-sm-3">
                 <a href="/dashboard" class="d-flex align-items-center gap-2 text-decoration-none">
                     <span class="fs-4 d-inline-flex align-items-center gap-1">{{icon:car-front}}{{icon:zap}}</span>
                     <span class="fw-bold fs-5 text-white">FSM Gateway</span>
-                    <span class="badge bg-secondary bg-opacity-25 text-secondary border border-secondary border-opacity-25 rounded-pill px-2 py-1 small">v1.0.0</span>
+                    <span class="badge bg-secondary bg-opacity-25 text-secondary border border-secondary border-opacity-25 rounded-pill px-2 py-1 small d-none d-sm-inline-block">v1.0.0</span>
                 </a>
                 <!-- Navigation Tabs -->
-                <ul class="nav nav-pills gap-1 ms-2">
+                <ul class="nav nav-pills gap-1 ms-1 ms-sm-2">
                     <li class="nav-item">
-                        <a href="/dashboard" class="nav-link active px-3 py-1 rounded-pill small fw-semibold">
-                            {{icon:layout-dashboard:me-1}} Übersicht
+                        <a href="/dashboard" class="nav-link active px-2 px-md-3 py-1 rounded-pill small fw-semibold">
+                            {{icon:layout-dashboard:me-1}}<span class="d-none d-sm-inline"> Übersicht</span>
                         </a>
                     </li>
                     <li class="nav-item">
-                        <a href="/dashboard/errors" class="nav-link text-secondary px-3 py-1 rounded-pill small fw-semibold position-relative">
-                            {{icon:triangle-alert:me-1}} Fehlerprotokoll
+                        <a href="/dashboard/errors" class="nav-link text-secondary px-2 px-md-3 py-1 rounded-pill small fw-semibold position-relative">
+                            {{icon:triangle-alert:me-1}}<span class="d-none d-sm-inline"> Fehlerprotokoll</span>
                             <span class="badge bg-danger rounded-pill ms-1 d-none" id="navErrorsBadge">0</span>
                         </a>
                     </li>
@@ -658,30 +658,38 @@ def _render_dashboard_html() -> str:
                 </div>
             </div>
 
-            <div class="d-flex align-items-center gap-2">
-                <!-- Time Range Buttons -->
-                <div class="btn-group btn-group-sm rounded-pill p-1 bg-dark border border-secondary border-opacity-25" role="group">
+            <div class="d-flex align-items-center gap-1 gap-sm-2">
+                <!-- Time Range Buttons (Desktop) -->
+                <div class="btn-group btn-group-sm rounded-pill p-1 bg-dark border border-secondary border-opacity-25 d-none d-lg-inline-flex" role="group">
                     <button type="button" class="btn btn-sm btn-primary rounded-pill px-3 fw-medium range-btn" onclick="setRange('24h')">24h</button>
                     <button type="button" class="btn btn-sm btn-dark rounded-pill px-3 fw-medium range-btn" onclick="setRange('7d')">7 Tage</button>
                     <button type="button" class="btn btn-sm btn-dark rounded-pill px-3 fw-medium range-btn" onclick="setRange('30d')">30 Tage</button>
                 </div>
 
                 <!-- Cache Clear Button -->
-                <button type="button" id="btnClearCache" class="btn btn-sm btn-outline-warning rounded-pill px-3 fw-medium" onclick="clearGatewayCache()" title="Gesamten In-Memory Cache des Gateways sofort leeren">
-                    {{icon:trash-2:me-1}} Cache leeren
+                <button type="button" id="btnClearCache" class="btn btn-sm btn-outline-warning rounded-pill px-2 px-md-3 fw-medium" onclick="clearGatewayCache()" title="Gesamten In-Memory Cache des Gateways sofort leeren">
+                    {{icon:trash-2}}<span class="d-none d-md-inline ms-1">Cache leeren</span>
                 </button>
 
-                <a href="/docs" target="_blank" class="btn btn-sm btn-outline-secondary rounded-pill px-3 text-decoration-none">
-                    {{icon:code-xml:me-1}} API Docs
+                <a href="/docs" target="_blank" class="btn btn-sm btn-outline-secondary rounded-pill px-2 px-md-3 text-decoration-none d-none d-sm-inline-block" title="Interaktive API Dokumentation">
+                    {{icon:code-xml}}<span class="d-none d-md-inline ms-1">API Docs</span>
                 </a>
-                <button type="button" class="btn btn-sm btn-outline-danger rounded-pill px-3" onclick="logout()">
+                <button type="button" class="btn btn-sm btn-outline-danger rounded-pill px-2 px-md-3" onclick="logout()" title="Abmelden">
                     {{icon:log-out}}
                 </button>
             </div>
         </div>
     </nav>
 
-    <div class="container-fluid px-4">
+    <div class="container-fluid px-2 px-sm-3 px-md-4">
+        <!-- Time Range Selector (Mobile / Tablet) -->
+        <div class="d-flex d-lg-none justify-content-end mb-3">
+            <div class="btn-group btn-group-sm rounded-pill p-1 bg-dark border border-secondary border-opacity-25" role="group">
+                <button type="button" class="btn btn-sm btn-primary rounded-pill px-3 fw-medium range-btn" onclick="setRange('24h')">24h</button>
+                <button type="button" class="btn btn-sm btn-dark rounded-pill px-3 fw-medium range-btn" onclick="setRange('7d')">7 Tage</button>
+                <button type="button" class="btn btn-sm btn-dark rounded-pill px-3 fw-medium range-btn" onclick="setRange('30d')">30 Tage</button>
+            </div>
+        </div>
         <!-- Live KPI Cards -->
         <div class="row g-3 mb-4">
             <div class="col-12 col-sm-6 col-xl-3">
@@ -1432,45 +1440,45 @@ def _render_errors_html() -> str:
 </head>
 <body class="pb-5">
     <!-- Navbar -->
-    <nav class="navbar navbar-custom sticky-top py-2 px-3 mb-4">
+    <nav class="navbar navbar-custom sticky-top py-2 px-2 px-sm-3 mb-3 mb-md-4">
         <div class="container-fluid d-flex justify-content-between align-items-center">
-            <div class="d-flex align-items-center gap-3">
+            <div class="d-flex align-items-center gap-2 gap-sm-3">
                 <a href="/dashboard" class="d-flex align-items-center gap-2 text-decoration-none">
                     <span class="fs-4 d-inline-flex align-items-center gap-1">{{icon:car-front}}{{icon:zap}}</span>
                     <span class="fw-bold fs-5 text-white">FSM Gateway</span>
-                    <span class="badge bg-secondary bg-opacity-25 text-secondary border border-secondary border-opacity-25 rounded-pill px-2 py-1 small">v1.0.0</span>
+                    <span class="badge bg-secondary bg-opacity-25 text-secondary border border-secondary border-opacity-25 rounded-pill px-2 py-1 small d-none d-sm-inline-block">v1.0.0</span>
                 </a>
                 <!-- Navigation Tabs -->
-                <ul class="nav nav-pills gap-1 ms-2">
+                <ul class="nav nav-pills gap-1 ms-1 ms-sm-2">
                     <li class="nav-item">
-                        <a href="/dashboard" class="nav-link text-secondary px-3 py-1 rounded-pill small fw-semibold">
-                            {{icon:layout-dashboard:me-1}} Übersicht
+                        <a href="/dashboard" class="nav-link text-secondary px-2 px-md-3 py-1 rounded-pill small fw-semibold">
+                            {{icon:layout-dashboard:me-1}}<span class="d-none d-sm-inline"> Übersicht</span>
                         </a>
                     </li>
                     <li class="nav-item">
-                        <a href="/dashboard/errors" class="nav-link active px-3 py-1 rounded-pill small fw-semibold position-relative">
-                            {{icon:triangle-alert:me-1}} Fehlerprotokoll
+                        <a href="/dashboard/errors" class="nav-link active px-2 px-md-3 py-1 rounded-pill small fw-semibold position-relative">
+                            {{icon:triangle-alert:me-1}}<span class="d-none d-sm-inline"> Fehlerprotokoll</span>
                             <span class="badge bg-danger rounded-pill ms-1 d-none" id="navErrorsBadge">0</span>
                         </a>
                     </li>
                 </ul>
             </div>
 
-            <div class="d-flex align-items-center gap-2">
-                <button type="button" id="btnClearCache" class="btn btn-sm btn-outline-warning rounded-pill px-3 fw-medium" onclick="clearGatewayCache()" title="Gesamten In-Memory Cache leeren">
-                    {{icon:trash-2:me-1}} Cache leeren
+            <div class="d-flex align-items-center gap-1 gap-sm-2">
+                <button type="button" id="btnClearCache" class="btn btn-sm btn-outline-warning rounded-pill px-2 px-md-3 fw-medium" onclick="clearGatewayCache()" title="Gesamten In-Memory Cache leeren">
+                    {{icon:trash-2}}<span class="d-none d-md-inline ms-1">Cache leeren</span>
                 </button>
-                <a href="/docs" target="_blank" class="btn btn-sm btn-outline-secondary rounded-pill px-3 text-decoration-none">
-                    {{icon:code-xml:me-1}} API Docs
+                <a href="/docs" target="_blank" class="btn btn-sm btn-outline-secondary rounded-pill px-2 px-md-3 text-decoration-none d-none d-sm-inline-block" title="Interaktive API Dokumentation">
+                    {{icon:code-xml}}<span class="d-none d-md-inline ms-1">API Docs</span>
                 </a>
-                <button type="button" class="btn btn-sm btn-outline-danger rounded-pill px-3" onclick="logout()">
+                <button type="button" class="btn btn-sm btn-outline-danger rounded-pill px-2 px-md-3" onclick="logout()" title="Abmelden">
                     {{icon:log-out}}
                 </button>
             </div>
         </div>
     </nav>
 
-    <div class="container-fluid px-4">
+    <div class="container-fluid px-2 px-sm-3 px-md-4">
         <!-- Page Header -->
         <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-3 mb-4">
             <div>

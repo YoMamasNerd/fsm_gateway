@@ -290,8 +290,16 @@ async def get_schueler_ausbildung(
                     datum_praxispruefung=r.get("datum_praxispruefung"),
                     fidergebnis_theorie=r.get("fidergebnis_theorie"),
                     fidergebnis_praxis=r.get("fidergebnis_praxis"),
-                    bestanden_theorie=bool(r.get("bestanden_theorie", False) or str(r.get("fidergebnis_theorie") or "").lower() == "bestanden"),
-                    bestanden_praxis=bool(r.get("bestanden_praxis", False) or str(r.get("fidergebnis_praxis") or "").lower() == "bestanden"),
+                    bestanden_theorie=bool(
+                        r.get("bestanden_theorie", False)
+                        or r.get("fidergebnis_theorie") == 185
+                        or str(r.get("fidergebnis_theorie") or "").lower() in ("bestanden", "mit erfolg", "185")
+                    ),
+                    bestanden_praxis=bool(
+                        r.get("bestanden_praxis", False)
+                        or r.get("fidergebnis_praxis") == 185
+                        or str(r.get("fidergebnis_praxis") or "").lower() in ("bestanden", "mit erfolg", "185")
+                    ),
                 )
             )
 
@@ -367,8 +375,16 @@ async def get_schueler_karteikarte(
                             datum_praxispruefung=r.get("datum_praxispruefung"),
                             fidergebnis_theorie=r.get("fidergebnis_theorie"),
                             fidergebnis_praxis=r.get("fidergebnis_praxis"),
-                            bestanden_theorie=bool(r.get("bestanden_theorie", False)),
-                            bestanden_praxis=bool(r.get("bestanden_praxis", False)),
+                            bestanden_theorie=bool(
+                                r.get("bestanden_theorie", False)
+                                or r.get("fidergebnis_theorie") == 185
+                                or str(r.get("fidergebnis_theorie") or "").lower() in ("bestanden", "mit erfolg", "185")
+                            ),
+                            bestanden_praxis=bool(
+                                r.get("bestanden_praxis", False)
+                                or r.get("fidergebnis_praxis") == 185
+                                or str(r.get("fidergebnis_praxis") or "").lower() in ("bestanden", "mit erfolg", "185")
+                            ),
                         )
                     )
 

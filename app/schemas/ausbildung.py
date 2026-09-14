@@ -32,8 +32,8 @@ class AusbildungItem(BaseModel):
     praxispruefungen: int | None = Field(None, description="Anzahl Praxisprüfungen")
     datum_theoriepruefung: str | None = Field(None, description="Datum der letzten Theorieprüfung (ISO)")
     datum_praxispruefung: str | None = Field(None, description="Datum der letzten Praxisprüfung (ISO)")
-    fidergebnis_theorie: str | None = Field(None, description="Ergebnis Theorieprüfung")
-    fidergebnis_praxis: str | None = Field(None, description="Ergebnis Praxisprüfung")
+    fidergebnis_theorie: str | int | None = Field(None, description="Ergebnis Theorieprüfung")
+    fidergebnis_praxis: str | int | None = Field(None, description="Ergebnis Praxisprüfung")
     bestanden_theorie: bool = Field(False, description="Theorieprüfung bestanden")
     bestanden_praxis: bool = Field(False, description="Praxisprüfung bestanden")
 

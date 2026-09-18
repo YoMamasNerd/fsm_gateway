@@ -28,7 +28,7 @@ class Settings(BaseSettings):
     )
     FSM_API_KEY: str = Field(
         default="",
-        description="FSM Portal X-FSM-ApiKey header value",
+        description="FSM Portal X-FSM-ApiKey header value (falls gesetzt, wird er als Bootstrap/Fallback genutzt; zur Laufzeit wird der Key normalerweise aus der FSM-Session via set_api_key() bezogen)",
     )
     FSM_AUTH_TOKEN: str = Field(
         default="",

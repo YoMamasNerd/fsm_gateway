@@ -42,12 +42,13 @@
       ]
     },
     {
-      "description": "Automerge minor, patch and digest updates once CI passes",
+      "description": "Automerge minor, patch, digest and lock file updates once CI passes",
       "matchUpdateTypes": [
         "minor",
         "patch",
         "digest",
-        "pinDigest"
+        "pinDigest",
+        "lockFileMaintenance"
       ],
       "automerge": true,
       "automergeType": "pr",
@@ -95,5 +96,14 @@
       "datasourceTemplate": "npm",
       "versioningTemplate": "npm"
     }
-  ]
+  ],
+  "lockFileMaintenance": {
+    "enabled": true,
+    "automerge": true,
+    "automergeType": "pr",
+    "platformAutomerge": true,
+    "schedule": [
+      "every weekend"
+    ]
+  }
 }

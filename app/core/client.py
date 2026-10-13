@@ -306,22 +306,28 @@ class FSMClient:
                 if not oauth_access_token:
                     raise FsmAuthError("Kein access_token in connect/token Antwort.")
 
-                # Step 5: Exchange OIDC Token via POST /v1/auth/sso
+                # Step 5: Exchange OIDC token via Portal-BFF SSO exchange.
+                # FSM hat den legacy x-fsm-apikey abgeschafft (Rotation 13.10.2026);
+                # der offizielle Login-Pfad des Portals ist /bff/auth/sso/exchange,
+                # der keinem API-Key bedarf.
                 hardware_id = str(uuid.uuid4())
-                current_api_key = await self.get_api_key()
+
+                await session.get(f"{self.portal_url}/bff/xsrf-token")
+                xsrf = session.cookies.get("__Host-XSRF-TOKEN")
 
                 sso_headers = {
                     "Content-Type": "application/json",
                     "Accept": "application/json",
-                    "Referer": f"{self.portal_url}/",
+                    "Referer": f"{self.portal_url}/login",
+                    "Origin": self.portal_url,
                 }
-                if current_api_key:
-                    sso_headers["x-fsm-apikey"] = current_api_key
+                if xsrf:
+                    sso_headers["X-XSRF-TOKEN"] = xsrf
 
                 sso_payload = {"viewModel": {"access_token": oauth_access_token}}
 
                 sso_resp = await session.post(
-                    f"{self.base_url}/v1/auth/sso?hardwareId={hardware_id}",
+                    f"{self.portal_url}/bff/auth/sso/exchange?hardwareId={hardware_id}",
                     json=sso_payload,
                     headers=sso_headers,
                 )
@@ -335,6 +341,11 @@ class FSMClient:
                     raise FsmAuthError(f"Kein authToken im SSO viewModel: {sso_data}")
 
                 await self.set_auth_token(final_auth_token)
+                # Der Portal-BFF authentifiziert API-Aufrufe per Session-Cookie,
+                # nicht per Bearer - Cookies aus dem Login-Handshake uebernehmen.
+                shared_client = await self.get_http_client()
+                for name, value in session.cookies.items():
+                    shared_client.cookies.set(name, value, domain=".fahrschulmanager.de")
                 logger.info("FSM: Login erfolgreich abgeschlossen. Neues Bearer Token hinterlegt.")
                 return final_auth_token
 
@@ -376,7 +387,6 @@ class FSMClient:
     async def _build_headers(self) -> tuple[dict[str, str], str]:
         """Builds default request headers with Bearer token and returns (headers, token)."""
         token = await self._ensure_token()
-        api_key = await self.get_api_key()
 
         headers = {
             "Accept": "application/json, text/plain, */*",
@@ -385,8 +395,6 @@ class FSMClient:
         }
         if token:
             headers["Authorization"] = token if token.startswith("Bearer ") else f"Bearer {token}"
-        if api_key:
-            headers["x-fsm-apikey"] = api_key
         return headers, token
 
     async def request(
@@ -405,8 +413,14 @@ class FSMClient:
         client = await self.get_http_client()
 
         normalized_path = path.lstrip("/")
-        base = (base_url_override or self.base_url).rstrip("/")
-        url = f"{base}/{normalized_path}"
+        if base_url_override:
+            base = base_url_override.rstrip("/")
+            url = f"{base}/{normalized_path}"
+        else:
+            # API-Aufrufe laufen ueber den Portal-BFF (Session-Proxy), seit FSM
+            # den legacy x-fsm-apikey abgeschafft hat.
+            bff_base = (settings.FSM_BFF_URL or f"{self.portal_url}/bff/api").rstrip("/")
+            url = f"{bff_base}/{normalized_path}"
 
         headers, token_used = await self._build_headers()
         if headers_override:

@@ -26,6 +26,11 @@ class Settings(BaseSettings):
         default="https://portal.fahrschulmanager.de",
         description="FSM Web Portal URL",
     )
+    FSM_BFF_URL: str = Field(
+        default="",
+        description="BFF-Proxy für API-Aufrufe (Default: {FSM_PORTAL_URL}/bff/api). "
+        "Tests setzen ihn auf api.fahrschulmanager.de, damit Mocks greifen.",
+    )
     FSM_API_KEY: str = Field(
         default="",
         description="FSM Portal X-FSM-ApiKey header value (falls gesetzt, wird er als Bootstrap/Fallback genutzt; zur Laufzeit wird der Key normalerweise aus der FSM-Session via set_api_key() bezogen)",

@@ -18,6 +18,7 @@ def setup_test_env(monkeypatch):
     monkeypatch.setattr(settings, "FSM_BASE_URL", "https://api.fahrschulmanager.de")
     monkeypatch.setattr(settings, "FSM_AUTH_URL", "https://login.fahren-lernen.de")
     monkeypatch.setattr(settings, "FSM_PORTAL_URL", "https://portal.fahrschulmanager.de")
+    monkeypatch.setattr(settings, "FSM_BFF_URL", "https://api.fahrschulmanager.de")
     monkeypatch.setattr(settings, "GATEWAY_API_KEY", "test-gateway-key")
     monkeypatch.setattr(settings, "FSM_AUTH_TOKEN", "test-bearer-token-12345")
 

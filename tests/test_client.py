@@ -51,8 +51,14 @@ async def test_auto_login_flow():
         json={"access_token": "mock-oidc-access-token", "token_type": "Bearer"},
     )
 
-    # 5. SSO POST
-    respx.post(url__regex=r"https://api\.fahrschulmanager\.de/v1/auth/sso.*").respond(
+    # 5. BFF XSRF-Token
+    respx.get("https://portal.fahrschulmanager.de/bff/xsrf-token").respond(
+        status_code=204,
+        headers={"Set-Cookie": "__Host-XSRF-TOKEN=test-xsrf; Path=/; Secure"},
+    )
+
+    # 6. BFF SSO Exchange
+    respx.post(url__regex=r"https://portal\.fahrschulmanager\.de/bff/auth/sso/exchange.*").respond(
         status_code=200,
         json={"viewModel": {"authToken": "final-fsm-bearer-token-abc"}},
     )
@@ -96,7 +102,11 @@ async def test_request_with_401_retry():
         status_code=200,
         json={"access_token": "mock-oidc-token"},
     )
-    respx.post(url__regex=r"https://api\.fahrschulmanager\.de/v1/auth/sso.*").respond(
+    respx.get("https://portal.fahrschulmanager.de/bff/xsrf-token").respond(
+        status_code=204,
+        headers={"Set-Cookie": "__Host-XSRF-TOKEN=test-xsrf; Path=/; Secure"},
+    )
+    respx.post(url__regex=r"https://portal\.fahrschulmanager\.de/bff/auth/sso/exchange.*").respond(
         status_code=200,
         json={"viewModel": {"authToken": "refreshed-fsm-token"}},
     )

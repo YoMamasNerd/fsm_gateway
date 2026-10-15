@@ -103,14 +103,18 @@ async def test_x_cache_hit_headers_all_endpoints(async_client: httpx.AsyncClient
     assert r3.status_code == 200
     assert r3.headers.get("x-cache-hit") == "0"
 
-    # 6. /v1/schueler/suche (GET and POST)
+    # 6. /v1/schueler/suche (GET and POST - caching verified)
     r_get = await async_client.get("/v1/schueler/suche?q=Max")
     assert r_get.status_code == 200
     assert r_get.headers.get("x-cache-hit") == "0"
 
     r_post = await async_client.post("/v1/schueler/suche", json={"query": "Max"})
     assert r_post.status_code == 200
-    assert r_post.headers.get("x-cache-hit") == "0"
+    assert r_post.headers.get("x-cache-hit") == "1"
+
+    r_refresh = await async_client.post("/v1/schueler/suche?refresh=true", json={"query": "Max"})
+    assert r_refresh.status_code == 200
+    assert r_refresh.headers.get("x-cache-hit") == "0"
 
     # 7. /v1/auth/status
     r_auth = await async_client.get("/v1/auth/status")
@@ -175,6 +179,7 @@ async def test_payment_and_webhook_invalidates_all_student_caches(async_client: 
     await cache.set(f"fsm:schueler:{student_id}", {"id": student_id}, ttl=300)
     await cache.set(f"fsm:leistungen:{student_id}", {"items": []}, ttl=300)
     await cache.set(f"fsm:fahrstunden:{student_id}", {"items": []}, ttl=300)
+    await cache.set("fsm:suche:test::::true:5000:0", {"count": 1}, ttl=300)
 
     # Mock Zahlung Vorlage & POST
     respx.get(f"https://api.fahrschulmanager.de/v1/zahlungen/vorlage?fidkunde={student_id}").respond(
@@ -199,6 +204,7 @@ async def test_payment_and_webhook_invalidates_all_student_caches(async_client: 
     assert await cache.get(f"fsm:schueler:{student_id}") is None
     assert await cache.get(f"fsm:leistungen:{student_id}") is None
     assert await cache.get(f"fsm:fahrstunden:{student_id}") is None
+    assert await cache.get("fsm:suche:test::::true:5000:0") is None
 
 
 @pytest.mark.asyncio

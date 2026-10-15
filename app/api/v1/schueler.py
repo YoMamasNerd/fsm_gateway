@@ -95,10 +95,24 @@ def _extract_student_item(raw_row: dict[str, Any]) -> SchuelerKurzItem | None:
     description="Sucht Schüler anhand von Suchbegriff, Vorname, Nachname, Karteinummer, Status und Pagination.",
 )
 async def search_schueler_post(
+    request: Request,
     response: Response,
     payload: SchuelerSucheRequest,
+    refresh: bool = Query(default=False, description="Erzwingt Live-Abruf"),
 ) -> SchuelerSucheResponse:
-    response.headers["X-Cache-Hit"] = "0"
+    force_refresh = refresh or request.headers.get("x-refresh-cache") == "1"
+    clean_q = (payload.query or "").strip().lower()
+    clean_vn = (payload.vorname or "").strip().lower()
+    clean_nn = (payload.nachname or "").strip().lower()
+    clean_kn = (payload.karteiNr or "").strip().lower()
+    cache_key = f"fsm:suche:{clean_q}:{clean_vn}:{clean_nn}:{clean_kn}:{payload.only_active}:{payload.count}:{payload.index}"
+
+    if not force_refresh:
+        cached_res = await cache.get(cache_key)
+        if cached_res is not None:
+            response.headers["X-Cache-Hit"] = "1"
+            return cached_res
+
     try:
         raw_res = await fsm_client.search_schueler(
             query=payload.query,
@@ -119,7 +133,10 @@ async def search_schueler_post(
                 if item:
                     schueler_items.append(item)
 
-        return SchuelerSucheResponse(count=len(schueler_items), schueler=schueler_items)
+        result = SchuelerSucheResponse(count=len(schueler_items), schueler=schueler_items)
+        await cache.set(cache_key, result, ttl=settings.SCHUELER_SUCHE_CACHE_TTL_SECONDS)
+        response.headers["X-Cache-Hit"] = "0"
+        return result
     except (FsmException, HTTPException):
         raise
     except Exception as exc:
@@ -137,6 +154,7 @@ async def search_schueler_post(
     description="Einfache Schülersuche via Query-Parameter (unterstützt Suchbegriff, Vorname, Nachname, Karteinummer).",
 )
 async def search_schueler_get(
+    request: Request,
     response: Response,
     query: str | None = Query(default=None, description="Suchbegriff (Vorname, Nachname oder Volltext)"),
     q: str | None = Query(default=None, description="Kurzalias für Suchbegriff (?q=...)"),
@@ -146,6 +164,7 @@ async def search_schueler_get(
     only_active: bool = Query(default=True, description="Nur aktive Schüler"),
     count: int = Query(default=5000, description="Anzahl Ergebnisse"),
     index: int = Query(default=0, description="Offset Index"),
+    refresh: bool = Query(default=False, description="Erzwingt Live-Abruf"),
 ) -> SchuelerSucheResponse:
     effective_query = q or query
     req = SchuelerSucheRequest(
@@ -157,7 +176,7 @@ async def search_schueler_get(
         count=count,
         index=index,
     )
-    return await search_schueler_post(response=response, payload=req)
+    return await search_schueler_post(request=request, response=response, payload=req, refresh=refresh)
 
 
 @router.get(

@@ -83,6 +83,10 @@ class Settings(BaseSettings):
         default=21600,
         description="TTL in seconds for student details/profile cache (default: 6 hours / 21600s)",
     )
+    SCHUELER_SUCHE_CACHE_TTL_SECONDS: int = Field(
+        default=60,
+        description="TTL in seconds for student search cache (default: 60s)",
+    )
     FAHRSTUNDEN_CACHE_TTL_SECONDS: int = Field(
         default=300,
         description="TTL in seconds for student driving lessons history cache (default: 5 minutes / 300s)",

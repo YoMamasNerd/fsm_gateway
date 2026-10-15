@@ -274,6 +274,7 @@ async def create_zahlung(
         await cache.delete_prefix(f"fsm:schueler:{clean_uuid}")
         await cache.delete_prefix(f"fsm:leistungen:{clean_uuid}")
         await cache.delete_prefix(f"fsm:fahrstunden:{clean_uuid}")
+        await cache.delete_prefix("fsm:suche:")
 
         return ZahlungResponse(
             success=True,

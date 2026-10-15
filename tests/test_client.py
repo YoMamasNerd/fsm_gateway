@@ -143,3 +143,106 @@ async def test_create_termin_chunking_over_600_minutes():
     assert len(created_ids) == 2
     assert created_ids == ["block-id-1", "block-id-2"]
     assert post_route.call_count == 2
+
+
+@pytest.mark.asyncio
+@respx.mock
+async def test_request_with_403_retry():
+    client = FSMClient(
+        base_url="https://api.fahrschulmanager.de",
+        auth_url="https://login.fahren-lernen.de",
+        portal_url="https://portal.fahrschulmanager.de",
+        auth_token="initial-expired-token",
+    )
+
+    # First request returns 403 Forbidden
+    route = respx.get("https://api.fahrschulmanager.de/v1/lehrer/fahrlehrer")
+    route.side_effect = [
+        httpx.Response(403, json={"message": "Forbidden / Session expired"}),
+        httpx.Response(200, json=[{"id": "fl-1", "vorname": "Max", "nachname": "Mustermann"}]),
+    ]
+
+    # Setup auto-login mock endpoints
+    respx.get("https://login.fahren-lernen.de/connect/authorize").respond(
+        status_code=200,
+        text='<html><meta name="xsrf" content="test-xsrf-token" /></html>',
+    )
+    respx.post("https://login.fahren-lernen.de/account/login").respond(
+        status_code=200,
+        json="/connect/authorize/callback?code=mock-code",
+    )
+    respx.get("https://login.fahren-lernen.de/connect/authorize/callback").respond(
+        status_code=302,
+        headers={"Location": "https://portal.fahrschulmanager.de/login?code=mock-code"},
+    )
+    respx.post("https://login.fahren-lernen.de/connect/token").respond(
+        status_code=200,
+        json={"access_token": "mock-oidc-token"},
+    )
+    respx.get("https://portal.fahrschulmanager.de/bff/xsrf-token").respond(
+        status_code=204,
+        headers={"Set-Cookie": "__Host-XSRF-TOKEN=test-xsrf; Path=/; Secure"},
+    )
+    respx.post(url__regex=r"https://portal\.fahrschulmanager\.de/bff/auth/sso/exchange.*").respond(
+        status_code=200,
+        json={"viewModel": {"authToken": "refreshed-fsm-token-403"}},
+    )
+
+    res = await client.request("GET", "v1/lehrer/fahrlehrer", params={"onlyActive": "true"})
+    assert isinstance(res, list)
+    assert res[0]["vorname"] == "Max"
+    assert await client.get_auth_token() == "refreshed-fsm-token-403"
+
+
+@pytest.mark.asyncio
+@respx.mock
+async def test_request_with_login_redirect_retry():
+    client = FSMClient(
+        base_url="https://api.fahrschulmanager.de",
+        auth_url="https://login.fahren-lernen.de",
+        portal_url="https://portal.fahrschulmanager.de",
+        auth_token="initial-expired-token",
+    )
+
+    # First request redirected to login page (302 -> /login -> 200 OK HTML)
+    route = respx.get("https://api.fahrschulmanager.de/v1/lehrer/fahrlehrer")
+    route.side_effect = [
+        httpx.Response(302, headers={"Location": "https://portal.fahrschulmanager.de/login"}),
+        httpx.Response(200, json=[{"id": "fl-1", "vorname": "Max", "nachname": "Mustermann"}]),
+    ]
+    respx.get("https://portal.fahrschulmanager.de/login").respond(
+        status_code=200,
+        text="<html>Login Required</html>",
+    )
+
+    # Setup auto-login mock endpoints
+    respx.get("https://login.fahren-lernen.de/connect/authorize").respond(
+        status_code=200,
+        text='<html><meta name="xsrf" content="test-xsrf-token" /></html>',
+    )
+    respx.post("https://login.fahren-lernen.de/account/login").respond(
+        status_code=200,
+        json="/connect/authorize/callback?code=mock-code",
+    )
+    respx.get("https://login.fahren-lernen.de/connect/authorize/callback").respond(
+        status_code=302,
+        headers={"Location": "https://portal.fahrschulmanager.de/login?code=mock-code"},
+    )
+    respx.post("https://login.fahren-lernen.de/connect/token").respond(
+        status_code=200,
+        json={"access_token": "mock-oidc-token"},
+    )
+    respx.get("https://portal.fahrschulmanager.de/bff/xsrf-token").respond(
+        status_code=204,
+        headers={"Set-Cookie": "__Host-XSRF-TOKEN=test-xsrf; Path=/; Secure"},
+    )
+    respx.post(url__regex=r"https://portal\.fahrschulmanager\.de/bff/auth/sso/exchange.*").respond(
+        status_code=200,
+        json={"viewModel": {"authToken": "refreshed-fsm-token-redirect"}},
+    )
+
+    res = await client.request("GET", "v1/lehrer/fahrlehrer", params={"onlyActive": "true"})
+    assert isinstance(res, list)
+    assert res[0]["vorname"] == "Max"
+    assert await client.get_auth_token() == "refreshed-fsm-token-redirect"
+

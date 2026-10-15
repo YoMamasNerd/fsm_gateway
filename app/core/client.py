@@ -344,8 +344,12 @@ class FSMClient:
                 # Der Portal-BFF authentifiziert API-Aufrufe per Session-Cookie,
                 # nicht per Bearer - Cookies aus dem Login-Handshake uebernehmen.
                 shared_client = await self.get_http_client()
+                portal_host = urllib.parse.urlparse(self.portal_url).hostname or "portal.fahrschulmanager.de"
                 for name, value in session.cookies.items():
-                    shared_client.cookies.set(name, value, domain=".fahrschulmanager.de")
+                    if name.startswith("__Host-"):
+                        shared_client.cookies.set(name, value, domain=portal_host, path="/")
+                    else:
+                        shared_client.cookies.set(name, value, domain=".fahrschulmanager.de")
                 logger.info("FSM: Login erfolgreich abgeschlossen. Neues Bearer Token hinterlegt.")
                 return final_auth_token
 
@@ -438,9 +442,18 @@ class FSMClient:
                 headers=headers,
             )
 
-            # Check for 401 Unauthorized -> auto re-login
-            if resp.status_code == 401 and retry_on_401:
-                logger.warning("FSM API: 401 Unauthorized auf %s. Prüfe Re-Login...", url)
+            # Check for Auth failure (401, 403 oder Redirect zur Login-Seite) -> auto re-login
+            is_auth_failure = (
+                resp.status_code in (401, 403)
+                or "/login" in resp.url.path
+                or "login.fahren-lernen.de" in (resp.url.host or "")
+            )
+            if is_auth_failure and retry_on_401:
+                logger.warning(
+                    "FSM API: Auth-Fehler (Status %s, URL %s). Prüfe Re-Login...",
+                    resp.status_code,
+                    resp.url,
+                )
                 current_token = await self.get_auth_token()
                 # Only perform auto_login if token has not already been refreshed by another concurrent task
                 if current_token == token_used:
@@ -453,7 +466,11 @@ class FSMClient:
                     data=data,
                     retry_on_401=False,
                     headers_override=headers_override,
+                    base_url_override=base_url_override,
                 )
+            if is_auth_failure and not retry_on_401:
+                logger.error("FSM API: Authentifizierungsfehler nach Re-Login (%s) auf %s", resp.status_code, url)
+                raise FsmAuthError(f"FSM Authentifizierungsfehler ({resp.status_code}) auf {url}")
 
             if resp.status_code >= 400:
                 err_text = resp.text
@@ -1020,6 +1037,7 @@ class FSMClient:
         await cache.delete_prefix(f"schueler:leistungen:{clean_sid}")
         await cache.delete_prefix(f"fsm:fahrstunden:{clean_sid}")
         await cache.delete_prefix(f"schueler:fahrstunden:{clean_sid}")
+        await cache.delete_prefix("fsm:suche:")
 
         datum_iso = _normalize_iso_datetime(datum)
 
@@ -1238,6 +1256,7 @@ class FSMClient:
         await cache.delete_prefix(f"schueler:ausbildung:{student_uuid}")
         await cache.delete_prefix(f"fsm:schueler:kartei:{student_uuid}")
         await cache.delete_prefix(f"schueler:kartei:{student_uuid}")
+        await cache.delete_prefix("fsm:suche:")
 
         final_klasse = kartei.get("klassen") or ("B(197)" if is_b197 else "B")
         logger.info("FSM Klasse für Schüler %s erfolgreich auf %s aktualisiert.", student_uuid, final_klasse)
@@ -1279,6 +1298,7 @@ class FSMClient:
         await cache.delete_prefix(f"schueler:details:{student_uuid}")
         await cache.delete_prefix(f"fsm:schueler:kartei:{student_uuid}")
         await cache.delete_prefix(f"schueler:kartei:{student_uuid}")
+        await cache.delete_prefix("fsm:suche:")
 
         logger.info(
             "Fahrlehrer für Schüler %s erfolgreich aktualisiert: FL1=%s (%s), FL2=%s (%s)",

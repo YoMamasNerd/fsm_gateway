@@ -251,6 +251,50 @@ async def get_schueler_details(
         )
 
 
+def _map_ausbildung_item(r: dict[str, Any], clean_uuid: str) -> AusbildungItem:
+    """Helper to normalize a raw FSM training record into AusbildungItem."""
+    ueb = _parse_german_number(r.get("uebungsfahrten")) or 0.0
+    uel = _parse_german_number(r.get("ueberlandfahrten")) or 0.0
+    ab = _parse_german_number(r.get("autobahnfahrten")) or 0.0
+    nf = _parse_german_number(r.get("nachtfahrten")) or 0.0
+    unt = _parse_german_number(r.get("unterweisungen")) or 0.0
+    sonst = _parse_german_number(r.get("sonstige_stunden")) or 0.0
+    gesamt = ueb + uel + ab + nf + unt + sonst
+
+    return AusbildungItem(
+        id=str(r.get("id") or clean_uuid),
+        fidklasse=r.get("fidklasse"),
+        klasse_name=r.get("klasse") or r.get("klasse_name") or r.get("klasseAbkuerzung") or r.get("klasseKennung"),
+        fidschueler=r.get("fidschueler") or clean_uuid,
+        lfdnr=r.get("lfdnr") or 1,
+        uebungsfahrten=ueb,
+        ueberlandfahrten=uel,
+        autobahnfahrten=ab,
+        nachtfahrten=nf,
+        unterweisungen=unt,
+        sonstige_stunden=sonst,
+        gesamt_fahrstunden=gesamt,
+        theoriestunden=_parse_german_number(r.get("theoriestunden")) or 0.0,
+        pflicht_theoriestunden=_parse_german_number(r.get("pflicht_theoriestunden")),
+        theoriepruefungen=r.get("theoriepruefungen"),
+        praxispruefungen=r.get("praxispruefungen"),
+        datum_theoriepruefung=r.get("datum_theoriepruefung"),
+        datum_praxispruefung=r.get("datum_praxispruefung"),
+        fidergebnis_theorie=r.get("fidergebnis_theorie"),
+        fidergebnis_praxis=r.get("fidergebnis_praxis"),
+        bestanden_theorie=bool(
+            r.get("bestanden_theorie", False)
+            or r.get("fidergebnis_theorie") == 185
+            or str(r.get("fidergebnis_theorie") or "").lower() in ("bestanden", "mit erfolg", "185")
+        ),
+        bestanden_praxis=bool(
+            r.get("bestanden_praxis", False)
+            or r.get("fidergebnis_praxis") == 185
+            or str(r.get("fidergebnis_praxis") or "").lower() in ("bestanden", "mit erfolg", "185")
+        ),
+    )
+
+
 @router.get(
     "/{student_uuid}/ausbildung",
     response_model=AusbildungListResponse,
@@ -275,52 +319,7 @@ async def get_schueler_ausbildung(
 
     try:
         raw_list = await fsm_client.get_ausbildungen(student_uuid=clean_uuid, fresh=force_refresh)
-        items: list[AusbildungItem] = []
-        for r in raw_list:
-            if not isinstance(r, dict):
-                continue
-            ueb = _parse_german_number(r.get("uebungsfahrten")) or 0.0
-            uel = _parse_german_number(r.get("ueberlandfahrten")) or 0.0
-            ab = _parse_german_number(r.get("autobahnfahrten")) or 0.0
-            nf = _parse_german_number(r.get("nachtfahrten")) or 0.0
-            unt = _parse_german_number(r.get("unterweisungen")) or 0.0
-            sonst = _parse_german_number(r.get("sonstige_stunden")) or 0.0
-            gesamt = ueb + uel + ab + nf + unt + sonst
-
-            items.append(
-                AusbildungItem(
-                    id=str(r.get("id") or clean_uuid),
-                    fidklasse=r.get("fidklasse"),
-                    klasse_name=r.get("klasse") or r.get("klasse_name") or r.get("klasseAbkuerzung") or r.get("klasseKennung"),
-                    fidschueler=r.get("fidschueler") or clean_uuid,
-                    lfdnr=r.get("lfdnr") or 1,
-                    uebungsfahrten=ueb,
-                    ueberlandfahrten=uel,
-                    autobahnfahrten=ab,
-                    nachtfahrten=nf,
-                    unterweisungen=unt,
-                    sonstige_stunden=sonst,
-                    gesamt_fahrstunden=gesamt,
-                    theoriestunden=_parse_german_number(r.get("theoriestunden")) or 0.0,
-                    pflicht_theoriestunden=_parse_german_number(r.get("pflicht_theoriestunden")),
-                    theoriepruefungen=r.get("theoriepruefungen"),
-                    praxispruefungen=r.get("praxispruefungen"),
-                    datum_theoriepruefung=r.get("datum_theoriepruefung"),
-                    datum_praxispruefung=r.get("datum_praxispruefung"),
-                    fidergebnis_theorie=r.get("fidergebnis_theorie"),
-                    fidergebnis_praxis=r.get("fidergebnis_praxis"),
-                    bestanden_theorie=bool(
-                        r.get("bestanden_theorie", False)
-                        or r.get("fidergebnis_theorie") == 185
-                        or str(r.get("fidergebnis_theorie") or "").lower() in ("bestanden", "mit erfolg", "185")
-                    ),
-                    bestanden_praxis=bool(
-                        r.get("bestanden_praxis", False)
-                        or r.get("fidergebnis_praxis") == 185
-                        or str(r.get("fidergebnis_praxis") or "").lower() in ("bestanden", "mit erfolg", "185")
-                    ),
-                )
-            )
+        items = [_map_ausbildung_item(r, clean_uuid) for r in raw_list if isinstance(r, dict)]
 
         result = AusbildungListResponse(count=len(items), student_uuid=clean_uuid, ausbildungen=items)
         await cache.set(cache_key, result, ttl=settings.AUSBILDUNG_CACHE_TTL_SECONDS)
@@ -364,48 +363,7 @@ async def get_schueler_karteikarte(
         ausb_raw = raw.get("ausbildungen", [])
         ausb_items: list[AusbildungItem] = []
         if isinstance(ausb_raw, list):
-            for r in ausb_raw:
-                if isinstance(r, dict):
-                    ueb = _parse_german_number(r.get("uebungsfahrten")) or 0.0
-                    uel = _parse_german_number(r.get("ueberlandfahrten")) or 0.0
-                    ab = _parse_german_number(r.get("autobahnfahrten")) or 0.0
-                    nf = _parse_german_number(r.get("nachtfahrten")) or 0.0
-                    unt = _parse_german_number(r.get("unterweisungen")) or 0.0
-                    sonst = _parse_german_number(r.get("sonstige_stunden")) or 0.0
-                    ausb_items.append(
-                        AusbildungItem(
-                            id=str(r.get("id") or clean_uuid),
-                            fidklasse=r.get("fidklasse"),
-                            klasse_name=r.get("klasse") or r.get("klasse_name") or r.get("klasseAbkuerzung") or r.get("klasseKennung"),
-                            fidschueler=r.get("fidschueler") or clean_uuid,
-                            lfdnr=r.get("lfdnr") or 1,
-                            uebungsfahrten=ueb,
-                            ueberlandfahrten=uel,
-                            autobahnfahrten=ab,
-                            nachtfahrten=nf,
-                            unterweisungen=unt,
-                            sonstige_stunden=sonst,
-                            gesamt_fahrstunden=ueb + uel + ab + nf + unt + sonst,
-                            theoriestunden=_parse_german_number(r.get("theoriestunden")) or 0.0,
-                            pflicht_theoriestunden=_parse_german_number(r.get("pflicht_theoriestunden")),
-                            theoriepruefungen=r.get("theoriepruefungen"),
-                            praxispruefungen=r.get("praxispruefungen"),
-                            datum_theoriepruefung=r.get("datum_theoriepruefung"),
-                            datum_praxispruefung=r.get("datum_praxispruefung"),
-                            fidergebnis_theorie=r.get("fidergebnis_theorie"),
-                            fidergebnis_praxis=r.get("fidergebnis_praxis"),
-                            bestanden_theorie=bool(
-                                r.get("bestanden_theorie", False)
-                                or r.get("fidergebnis_theorie") == 185
-                                or str(r.get("fidergebnis_theorie") or "").lower() in ("bestanden", "mit erfolg", "185")
-                            ),
-                            bestanden_praxis=bool(
-                                r.get("bestanden_praxis", False)
-                                or r.get("fidergebnis_praxis") == 185
-                                or str(r.get("fidergebnis_praxis") or "").lower() in ("bestanden", "mit erfolg", "185")
-                            ),
-                        )
-                    )
+            ausb_items = [_map_ausbildung_item(r, clean_uuid) for r in ausb_raw if isinstance(r, dict)]
 
         result = KarteikarteResponse(
             student_uuid=clean_uuid,

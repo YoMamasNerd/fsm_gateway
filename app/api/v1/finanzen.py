@@ -5,10 +5,10 @@ from __future__ import annotations
 import datetime as dt
 import logging
 import re
-from typing import Any
 
 from fastapi import APIRouter, HTTPException, Path, Query, Request, Response, status
 
+from app.api.v1.schueler import _parse_german_number
 from app.core.cache import cache
 from app.core.client import FsmException, fsm_client
 from app.core.config import settings
@@ -23,27 +23,6 @@ from app.schemas.finanzen import (
 
 logger = logging.getLogger("fsm_gateway.api.finanzen")
 router = APIRouter(tags=["Finanzen & Leistungen"])
-
-
-def _parse_german_number(val: Any) -> float | None:
-    """Safely convert int, float, or localized German numeric string to float."""
-    if val is None or val == "":
-        return None
-    if isinstance(val, (int, float)):
-        return float(val)
-    if isinstance(val, str):
-        cleaned = re.sub(r"[^\d,\.\-]", "", val.strip())
-        if not cleaned:
-            return None
-        if "," in cleaned and "." in cleaned:
-            cleaned = cleaned.replace(".", "").replace(",", ".")
-        elif "," in cleaned:
-            cleaned = cleaned.replace(",", ".")
-        try:
-            return float(cleaned)
-        except ValueError:
-            return None
-    return None
 
 
 def _parse_date_time_desc(desc: str | None) -> tuple[str | None, str | None]:

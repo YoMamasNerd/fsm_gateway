@@ -568,7 +568,7 @@ class MetricsCollector:
         return "\n".join(lines)
 
     async def cleanup_old_records(self, days: int | None = None) -> int:
-        """Deletes metric rows older than retention days."""
+        """Deletes metric and error log rows older than retention days."""
         retention = days or settings.METRICS_RETENTION_DAYS
         threshold = time.time() - (retention * 86400)
 
@@ -577,6 +577,8 @@ class MetricsCollector:
                 cursor = conn.cursor()
                 cursor.execute("DELETE FROM request_metrics WHERE timestamp < ?", (threshold,))
                 deleted = cursor.rowcount
+                cursor.execute("DELETE FROM error_logs WHERE timestamp < ?", (threshold,))
+                deleted += cursor.rowcount
                 conn.commit()
                 return deleted
 

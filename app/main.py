@@ -101,7 +101,7 @@ app = FastAPI(
         "Zentraler FastAPI-Microservice für alle Interaktionen mit der **Fahrschulmanager (FSM)** API. "
         "Dient als Single Source of Truth für `schalti_termine`, `django_rechn`, `django_diacard` und SumUp-Zahlungen."
     ),
-    version="1.0.0",
+    version="1.1.0",
     docs_url=None,
     redoc_url=None,
     openapi_url=None,
@@ -254,14 +254,14 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
     metrics_collector.record_error(
         method=request.method,
         path=request.url.path,
-        status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+        status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
         error_type="RequestValidationError",
         message=summary_msg,
         details=errors,
         client_ip=client_ip,
     )
     return JSONResponse(
-        status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+        status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
         content={"detail": errors, "error_type": "RequestValidationError", "message": summary_msg},
     )
 

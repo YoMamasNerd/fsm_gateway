@@ -152,16 +152,44 @@ class FSMClient:
         if self._auth_token:
             return self._auth_token
         cached = await cache.get(CACHE_KEY_AUTH_TOKEN)
+        if isinstance(cached, dict) and cached.get("token"):
+            self._auth_token = str(cached["token"])
+            if cached.get("obtained_at") and self._token_obtained_at is None:
+                self._token_obtained_at = float(cached["obtained_at"])
+            cookies_data = cached.get("cookies")
+            if isinstance(cookies_data, list):
+                shared_client = await self.get_http_client()
+                for c in cookies_data:
+                    if isinstance(c, dict) and c.get("name") and c.get("value") is not None:
+                        shared_client.cookies.set(
+                            c["name"],
+                            c["value"],
+                            domain=c.get("domain", ""),
+                            path=c.get("path", "/"),
+                        )
+            return self._auth_token
         if cached:
             self._auth_token = str(cached)
             return self._auth_token
         return None
 
-    async def set_auth_token(self, token: str, ttl: int = 43200) -> None:
-        """Stores the Bearer token in memory and TTL cache (default 12 hours)."""
+    async def set_auth_token(
+        self,
+        token: str,
+        ttl: int = 43200,
+        cookies: list[dict[str, str]] | None = None,
+    ) -> None:
+        """Stores the Bearer token, timestamp and optional BFF cookies in memory and TTL cache."""
         self._auth_token = token
         self._token_obtained_at = dt.datetime.now(dt.timezone.utc).timestamp()
-        await cache.set(CACHE_KEY_AUTH_TOKEN, token, ttl=ttl)
+        if cookies is not None:
+            await cache.set(
+                CACHE_KEY_AUTH_TOKEN,
+                {"token": token, "obtained_at": self._token_obtained_at, "cookies": cookies},
+                ttl=ttl,
+            )
+        else:
+            await cache.set(CACHE_KEY_AUTH_TOKEN, token, ttl=ttl)
 
     async def auto_login(self, email: str | None = None, password: str | None = None) -> str:
         """Performs full OAuth2 PKCE login flow and SSO token exchange against FSM."""
@@ -340,16 +368,19 @@ class FSMClient:
                 if not final_auth_token:
                     raise FsmAuthError(f"Kein authToken im SSO viewModel: {sso_data}")
 
-                await self.set_auth_token(final_auth_token)
                 # Der Portal-BFF authentifiziert API-Aufrufe per Session-Cookie,
                 # nicht per Bearer - Cookies aus dem Login-Handshake uebernehmen.
                 shared_client = await self.get_http_client()
                 portal_host = urllib.parse.urlparse(self.portal_url).hostname or "portal.fahrschulmanager.de"
+                persisted_cookies: list[dict[str, str]] = []
                 for name, value in session.cookies.items():
                     if name.startswith("__Host-"):
                         shared_client.cookies.set(name, value, domain=portal_host, path="/")
+                        persisted_cookies.append({"name": name, "value": value, "domain": portal_host, "path": "/"})
                     else:
                         shared_client.cookies.set(name, value, domain=".fahrschulmanager.de")
+                        persisted_cookies.append({"name": name, "value": value, "domain": ".fahrschulmanager.de", "path": "/"})
+                await self.set_auth_token(final_auth_token, cookies=persisted_cookies)
                 logger.info("FSM: Login erfolgreich abgeschlossen. Neues Bearer Token hinterlegt.")
                 return final_auth_token
 
@@ -833,14 +864,18 @@ class FSMClient:
         systemtheoriegruppe.
         """
         payload_termine = []
+        affected_fl: set[str] = set()
         for t in termine:
+            fl_id = t.get("fahrlehrer_id")
+            if fl_id:
+                affected_fl.add(str(fl_id).strip())
             payload_termine.append({
                 "von": _normalize_iso_datetime(t["von"]),
                 "bis": _normalize_iso_datetime(t["bis"]),
                 "fidKurs": kurs_id,
                 "fidTerminart": "PT",
                 "gebucht": False,
-                "fidFahrlehrer": [t["fahrlehrer_id"]] if t.get("fahrlehrer_id") else [],
+                "fidFahrlehrer": [fl_id] if fl_id else [],
                 "fidSystemtheoriegruppe": t.get("systemtheoriegruppe") or "*",
                 "fidFiliale": t.get("filiale_id") or settings.FSM_DEFAULT_FILIALE_ID,
                 "kapitel": t["kapitel"],
@@ -849,6 +884,9 @@ class FSMClient:
         res = await self.request(
             "POST", "v1/termine/theorietermin/bulk", json_data={"viewModel": {"termine": payload_termine}}
         )
+        for fl_id in affected_fl:
+            await cache.delete_prefix(f"kalender:{fl_id}")
+            await cache.delete_prefix(f"fsm:kalender:{fl_id}")
         vm = res.get("viewModel", []) if isinstance(res, dict) else []
         return vm if isinstance(vm, list) else []
 
@@ -874,6 +912,8 @@ class FSMClient:
         if not current:
             raise FsmApiError(404, f"Theorietermin {termin_id} nicht gefunden")
 
+        affected_fl: set[str] = {str(fid).strip() for fid in (current.get("fidFahrlehrer") or []) if fid}
+
         if von is not None:
             current["von"] = _normalize_iso_datetime(von)
         if bis is not None:
@@ -885,14 +925,20 @@ class FSMClient:
             current["texte"] = f"TH-{gruppe_label}\n{kapitel}"
         if fahrlehrer_id is not None:
             current["fidFahrlehrer"] = [fahrlehrer_id]
+            affected_fl.add(str(fahrlehrer_id).strip())
 
         await self.request("PUT", "v1/termine/theorietermin", json_data={"viewModel": current})
+        for fl_id in affected_fl:
+            await cache.delete_prefix(f"kalender:{fl_id}")
+            await cache.delete_prefix(f"fsm:kalender:{fl_id}")
         return True
 
     async def delete_theorietermin(self, termin_id: str) -> bool:
         """Löscht einen einzelnen Theorietermin aus FSM."""
         payload = {"viewModel": {"id": termin_id}}
         await self.request("DELETE", "v1/termine/theorietermin", json_data=payload)
+        await cache.delete_prefix("kalender:")
+        await cache.delete_prefix("fsm:kalender:")
         return True
 
     async def search_schueler(

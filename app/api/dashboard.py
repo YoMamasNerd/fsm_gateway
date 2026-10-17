@@ -475,46 +475,58 @@ def _render_login_html(redirect_to: str = "/dashboard") -> str:
     <link rel="apple-touch-icon" href="/static/apple-touch-icon.png">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/css/bootstrap.min.css" rel="stylesheet">
     <style>
         body {{
             font-family: 'Inter', system-ui, -apple-system, sans-serif;
-            background: #0f172a;
+            background: radial-gradient(circle at 50% 0%, rgba(59, 130, 246, 0.12), transparent 50%), #090d16;
             color: #f8fafc;
             min-height: 100vh;
             display: flex;
             align-items: center;
             justify-content: center;
+            letter-spacing: -0.01em;
         }}
         svg.icon {{
-            width: 0.85em;
-            height: 0.85em;
+            width: 1em;
+            height: 1em;
             flex-shrink: 0;
-            vertical-align: -0.12em;
+            vertical-align: -0.15em;
         }}
         a .icon, button .icon {{ pointer-events: none; }}
         .login-card {{
-            background: #1e293b;
-            border: 1px solid #334155;
+            background: linear-gradient(180deg, rgba(30, 41, 59, 0.55) 0%, rgba(17, 24, 39, 0.95) 100%);
+            border: 1px solid rgba(148, 163, 184, 0.15);
             border-radius: 1rem;
             width: 100%;
             max-width: 400px;
-            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.5);
+            box-shadow: 0 25px 40px -10px rgba(0, 0, 0, 0.6);
+        }}
+        .brand-mark {{
+            width: 48px;
+            height: 48px;
+            border-radius: 12px;
+            background: linear-gradient(135deg, #2563eb, #1d4ed8);
+            box-shadow: 0 4px 16px rgba(37, 99, 235, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.25);
+            color: #fff;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
         }}
         .btn-primary {{
-            background: #3b82f6;
-            border-color: #3b82f6;
-        }}
-        .btn-primary:hover {{
             background: #2563eb;
             border-color: #2563eb;
         }}
+        .btn-primary:hover {{
+            background: #1d4ed8;
+            border-color: #1d4ed8;
+        }}
     </style>
 </head>
-<body>
+<body class="px-3">
     <div class="p-4 login-card text-center">
-        <div class="rounded-circle bg-primary bg-opacity-10 text-primary d-inline-flex p-3 mb-3">
-            {icon('lock-keyhole', 'fs-2')}
+        <div class="brand-mark fs-4 mb-3">
+            {icon('lock-keyhole')}
         </div>
         <h4 class="fw-bold mb-1">FSM Gateway</h4>
         <p class="text-secondary small mb-4">Authentifizierung für Dashboard erforderlich</p>
@@ -553,6 +565,8 @@ def _render_login_html(redirect_to: str = "/dashboard") -> str:
             }} finally {{
                 btn.disabled = false;
             }}
+        }}
+    </script>
 </body>
 </html>"""
 

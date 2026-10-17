@@ -14,46 +14,156 @@
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/css/bootstrap.min.css" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.2/dist/chart.umd.min.js"></script>
     <style>
+        :root {
+            --bg-base: #090d16;
+            --bg-surface: #111827;
+            --bg-elevated: #1e293b;
+            --border-subtle: rgba(148, 163, 184, 0.12);
+            --border-hover: rgba(148, 163, 184, 0.25);
+            --scrollbar-thumb: #334155;
+            --scrollbar-track: #0f172a;
+        }
         body {
             font-family: 'Inter', system-ui, -apple-system, sans-serif;
-            background: #0b1120;
+            background: radial-gradient(circle at 50% 0%, rgba(59, 130, 246, 0.08), transparent 45%), var(--bg-base);
             color: #f1f5f9;
             min-height: 100vh;
+            letter-spacing: -0.01em;
+        }
+        .tabular-nums {
+            font-variant-numeric: tabular-nums;
         }
         svg.icon {
-            width: 0.85em;
-            height: 0.85em;
+            width: 1em;
+            height: 1em;
             flex-shrink: 0;
-            vertical-align: -0.12em;
+            vertical-align: -0.15em;
         }
         a .icon, button .icon { pointer-events: none; }
         .navbar-custom {
-            background: rgba(15, 23, 42, 0.85);
-            backdrop-filter: blur(12px);
-            border-bottom: 1px solid #1e293b;
+            background: rgba(9, 13, 22, 0.82);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            border-bottom: 1px solid var(--border-subtle);
+        }
+        .brand-mark {
+            width: 34px;
+            height: 34px;
+            border-radius: 9px;
+            background: linear-gradient(135deg, #2563eb, #1d4ed8);
+            box-shadow: 0 2px 10px rgba(37, 99, 235, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.2);
+            color: #fff;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .nav-segmented {
+            background: rgba(15, 23, 42, 0.9);
+            border: 1px solid var(--border-subtle);
+            border-radius: 999px;
+            padding: 3px;
+        }
+        .nav-segmented .nav-link {
+            color: #94a3b8;
+            border-radius: 999px;
+            padding: 0.3rem 0.85rem;
+            font-size: 0.8125rem;
+            font-weight: 500;
+            transition: all 0.15s ease;
+        }
+        .nav-segmented .nav-link:hover:not(.active) {
+            color: #e2e8f0;
+        }
+        .nav-segmented .nav-link.active {
+            background: #2563eb;
+            color: #ffffff;
+            box-shadow: 0 1px 4px rgba(37, 99, 235, 0.4);
+        }
+        .kpi-grid {
+            display: grid;
+            grid-template-columns: repeat(1, minmax(0, 1fr));
+            gap: 0.875rem;
+        }
+        @media (min-width: 576px) {
+            .kpi-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+        }
+        @media (min-width: 992px) {
+            .kpi-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+        }
+        @media (min-width: 1280px) {
+            .kpi-grid { grid-template-columns: repeat(5, minmax(0, 1fr)); }
         }
         .card-custom {
-            background: #111827;
-            border: 1px solid #1f2937;
-            border-radius: 0.85rem;
-            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.2);
-            transition: border-color 0.2s;
+            background: linear-gradient(180deg, rgba(30, 41, 59, 0.45) 0%, rgba(17, 24, 39, 0.9) 100%);
+            border: 1px solid var(--border-subtle);
+            border-radius: 0.875rem;
+            box-shadow: 0 4px 20px -2px rgba(0, 0, 0, 0.35);
+            transition: border-color 0.2s ease, transform 0.2s ease;
         }
         .card-custom:hover {
-            border-color: #374151;
+            border-color: var(--border-hover);
         }
-        .badge-method-get { background: rgba(59, 130, 246, 0.15); color: #60a5fa; border: 1px solid rgba(59, 130, 246, 0.3); }
-        .badge-method-post { background: rgba(16, 185, 129, 0.15); color: #34d399; border: 1px solid rgba(16, 185, 129, 0.3); }
-        .badge-method-put { background: rgba(245, 158, 11, 0.15); color: #fbbf24; border: 1px solid rgba(245, 158, 11, 0.3); }
-        .badge-method-delete { background: rgba(239, 68, 68, 0.15); color: #f87171; border: 1px solid rgba(239, 68, 68, 0.3); }
+        .kpi-icon-box {
+            width: 34px;
+            height: 34px;
+            border-radius: 8px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1rem;
+        }
+        .kpi-value {
+            font-size: 1.65rem;
+            font-weight: 700;
+            line-height: 1.15;
+            letter-spacing: -0.025em;
+            font-variant-numeric: tabular-nums;
+        }
+        .badge-method {
+            font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+            font-size: 0.68rem;
+            font-weight: 600;
+            letter-spacing: 0.03em;
+            min-width: 48px;
+            display: inline-block;
+            text-align: center;
+        }
+        .badge-method-get { background: rgba(59, 130, 246, 0.14); color: #60a5fa; border: 1px solid rgba(59, 130, 246, 0.28); }
+        .badge-method-post { background: rgba(16, 185, 129, 0.14); color: #34d399; border: 1px solid rgba(16, 185, 129, 0.28); }
+        .badge-method-put { background: rgba(245, 158, 11, 0.14); color: #fbbf24; border: 1px solid rgba(245, 158, 11, 0.28); }
+        .badge-method-delete { background: rgba(239, 68, 68, 0.14); color: #f87171; border: 1px solid rgba(239, 68, 68, 0.28); }
         .table-custom {
             --bs-table-bg: transparent;
-            --bs-table-border-color: #1f2937;
+            --bs-table-border-color: rgba(148, 163, 184, 0.08);
+            --bs-table-hover-bg: rgba(148, 163, 184, 0.05);
             color: #cbd5e1;
         }
+        .table-custom thead th {
+            font-size: 0.7rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            font-weight: 600;
+            color: #64748b;
+            border-bottom-width: 1px;
+            padding-top: 0.65rem;
+            padding-bottom: 0.65rem;
+        }
+        .table-custom tbody td {
+            padding-top: 0.55rem;
+            padding-bottom: 0.55rem;
+        }
+        .scroller {
+            scrollbar-width: thin;
+            scrollbar-color: var(--scrollbar-thumb) var(--scrollbar-track);
+        }
+        @supports not (scrollbar-color: auto) {
+            .scroller::-webkit-scrollbar { width: 8px; height: 8px; }
+            .scroller::-webkit-scrollbar-thumb { background: var(--scrollbar-thumb); border-radius: 4px; }
+            .scroller::-webkit-scrollbar-track { background: var(--scrollbar-track); }
+        }
         .live-dot {
-            width: 9px;
-            height: 9px;
+            width: 8px;
+            height: 8px;
             border-radius: 50%;
             background-color: #10b981;
             display: inline-block;
@@ -65,6 +175,15 @@
             50% { opacity: 0.4; transform: scale(0.85); }
             100% { opacity: 1; transform: scale(1); }
         }
+        .key-pill {
+            font-size: 0.68rem;
+            padding: 0.1rem 0.45rem;
+            border-radius: 999px;
+            background: rgba(148, 163, 184, 0.1);
+            color: #94a3b8;
+            border: 1px solid rgba(148, 163, 184, 0.15);
+            white-space: nowrap;
+        }
     </style>
 </head>
 <body class="pb-5">
@@ -74,40 +193,40 @@
         <div class="container-fluid d-flex justify-content-between align-items-center">
             <div class="d-flex align-items-center gap-2 gap-sm-3">
                 <a href="/dashboard" class="d-flex align-items-center gap-2 text-decoration-none">
-                    <span class="fs-4 d-inline-flex align-items-center gap-1">{{icon:car-front}}{{icon:zap}}</span>
-                    <span class="fw-bold fs-5 text-white">FSM Gateway</span>
-                    <span class="badge bg-secondary bg-opacity-25 text-secondary border border-secondary border-opacity-25 rounded-pill px-2 py-1 small d-none d-sm-inline-block">v1.0.0</span>
+                    <span class="brand-mark">{{icon:zap}}</span>
+                    <span class="fw-bold fs-6 text-white tracking-tight">FSM Gateway</span>
+                    <span class="badge bg-secondary bg-opacity-10 text-secondary border border-secondary border-opacity-25 rounded-pill px-2 py-1 small d-none d-sm-inline-block" style="font-size: 0.68rem;">v1.1.0</span>
                 </a>
                 <!-- Navigation Tabs -->
-                <ul class="nav nav-pills gap-1 ms-1 ms-sm-2">
+                <ul class="nav nav-segmented gap-1 ms-1 ms-sm-2">
                     <li class="nav-item">
-                        <a href="/dashboard" class="nav-link active px-2 px-md-3 py-1 rounded-pill small fw-semibold">
-                            {{icon:layout-dashboard:me-1}}<span class="d-none d-sm-inline"> Übersicht</span>
+                        <a href="/dashboard" class="nav-link active d-flex align-items-center gap-1">
+                            {{icon:layout-dashboard}}<span class="d-none d-sm-inline">Übersicht</span>
                         </a>
                     </li>
                     <li class="nav-item">
-                        <a href="/dashboard/errors" class="nav-link text-secondary px-2 px-md-3 py-1 rounded-pill small fw-semibold position-relative">
-                            {{icon:triangle-alert:me-1}}<span class="d-none d-sm-inline"> Fehlerprotokoll</span>
+                        <a href="/dashboard/errors" class="nav-link d-flex align-items-center gap-1 position-relative">
+                            {{icon:triangle-alert}}<span class="d-none d-sm-inline">Fehlerprotokoll</span>
                             <span class="badge bg-danger rounded-pill ms-1 d-none" id="navErrorsBadge">0</span>
                         </a>
                     </li>
                 </ul>
-                <div class="d-none d-xl-flex align-items-center gap-2 ms-3 ps-3 border-start border-secondary border-opacity-25">
-                    <span class="live-dot"></span>
-                    <span class="small text-secondary" id="cloudStatusBadge">FSM Cloud Verbunden</span>
+                <div class="d-none d-xl-flex align-items-center gap-2 ms-2 ps-3 border-start border-secondary border-opacity-25">
+                    <span class="live-dot" id="cloudStatusDot"></span>
+                    <span class="small text-secondary" style="font-size: 0.78rem;" id="cloudStatusBadge">FSM Cloud Verbunden</span>
                 </div>
             </div>
 
             <div class="d-flex align-items-center gap-1 gap-sm-2">
                 <!-- Time Range Buttons (Desktop) -->
-                <div class="btn-group btn-group-sm rounded-pill p-1 bg-dark border border-secondary border-opacity-25 d-none d-lg-inline-flex" role="group">
-                    <button type="button" class="btn btn-sm btn-primary rounded-pill px-3 fw-medium range-btn" onclick="setRange('24h')">24h</button>
-                    <button type="button" class="btn btn-sm btn-dark rounded-pill px-3 fw-medium range-btn" onclick="setRange('7d')">7 Tage</button>
-                    <button type="button" class="btn btn-sm btn-dark rounded-pill px-3 fw-medium range-btn" onclick="setRange('30d')">30 Tage</button>
+                <div class="nav-segmented d-none d-lg-inline-flex" role="group">
+                    <button type="button" class="btn btn-sm btn-primary rounded-pill px-3 py-1 fw-medium range-btn" style="font-size: 0.78rem;" data-range="24h" onclick="setRange('24h')">24h</button>
+                    <button type="button" class="btn btn-sm btn-link text-secondary text-decoration-none rounded-pill px-3 py-1 fw-medium range-btn" style="font-size: 0.78rem;" data-range="7d" onclick="setRange('7d')">7 Tage</button>
+                    <button type="button" class="btn btn-sm btn-link text-secondary text-decoration-none rounded-pill px-3 py-1 fw-medium range-btn" style="font-size: 0.78rem;" data-range="30d" onclick="setRange('30d')">30 Tage</button>
                 </div>
 
                 <!-- Cache Clear Button -->
-                <button type="button" id="btnClearCache" class="btn btn-sm btn-outline-warning rounded-pill px-2 px-md-3 fw-medium" onclick="clearGatewayCache()" title="Gesamten In-Memory Cache des Gateways sofort leeren">
+                <button type="button" id="btnClearCache" class="btn btn-sm btn-outline-warning rounded-pill px-2 px-md-3 fw-medium" onclick="clearGatewayCache()" title="Gesamten Cache des Gateways sofort leeren">
                     {{icon:trash-2}}<span class="d-none d-md-inline ms-1">Cache leeren</span>
                 </button>
 
@@ -123,101 +242,112 @@
 
     <div class="container-fluid px-2 px-sm-3 px-md-4">
         <!-- Time Range Selector (Mobile / Tablet) -->
-        <div class="d-flex d-lg-none justify-content-end mb-3">
-            <div class="btn-group btn-group-sm rounded-pill p-1 bg-dark border border-secondary border-opacity-25" role="group">
-                <button type="button" class="btn btn-sm btn-primary rounded-pill px-3 fw-medium range-btn" onclick="setRange('24h')">24h</button>
-                <button type="button" class="btn btn-sm btn-dark rounded-pill px-3 fw-medium range-btn" onclick="setRange('7d')">7 Tage</button>
-                <button type="button" class="btn btn-sm btn-dark rounded-pill px-3 fw-medium range-btn" onclick="setRange('30d')">30 Tage</button>
+        <div class="d-flex d-lg-none justify-content-between align-items-center mb-3">
+            <span class="small text-secondary fw-medium">Zeitraum</span>
+            <div class="nav-segmented d-inline-flex" role="group">
+                <button type="button" class="btn btn-sm btn-primary rounded-pill px-3 py-1 fw-medium range-btn" style="font-size: 0.78rem;" data-range="24h" onclick="setRange('24h')">24h</button>
+                <button type="button" class="btn btn-sm btn-link text-secondary text-decoration-none rounded-pill px-3 py-1 fw-medium range-btn" style="font-size: 0.78rem;" data-range="7d" onclick="setRange('7d')">7 Tage</button>
+                <button type="button" class="btn btn-sm btn-link text-secondary text-decoration-none rounded-pill px-3 py-1 fw-medium range-btn" style="font-size: 0.78rem;" data-range="30d" onclick="setRange('30d')">30 Tage</button>
             </div>
         </div>
-        <!-- Live KPI Cards -->
-        <div class="row g-3 mb-4">
-            <div class="col-12 col-sm-6 col-xl-3">
-                <div class="card-custom p-3 h-100">
-                    <div class="d-flex justify-content-between align-items-center text-secondary mb-1">
-                        <span class="small fw-semibold">Anfragen (Gewählter Zeitraum)</span>
-                        <span class="text-primary fs-5">{{icon:activity}}</span>
+
+        <!-- 5-Column Responsive KPI Grid -->
+        <div class="kpi-grid mb-4">
+            <!-- 1. Requests -->
+            <div class="card-custom p-3 d-flex flex-column justify-content-between">
+                <div>
+                    <div class="d-flex justify-content-between align-items-center text-secondary mb-2">
+                        <span class="small fw-medium">Anfragen</span>
+                        <span class="kpi-icon-box bg-primary bg-opacity-10 text-primary">{{icon:activity}}</span>
                     </div>
                     <div class="d-flex align-items-baseline gap-2">
-                        <h2 class="fw-bold mb-0 text-white" id="kpiTotalReq">-</h2>
-                        <span class="small text-secondary" id="kpiReqSec">0.0 req/s</span>
+                        <div class="kpi-value text-white" id="kpiTotalReq">-</div>
+                        <span class="small text-secondary tabular-nums" id="kpiReqSec">0.0 req/s</span>
                     </div>
-                    <div class="small text-secondary mt-2">
-                        Gesamt seit Start: <strong class="text-light" id="kpiLifetime">-</strong>
-                    </div>
+                </div>
+                <div class="small text-secondary mt-2 pt-2 border-top border-secondary border-opacity-10 d-flex justify-content-between">
+                    <span>Seit Start</span>
+                    <strong class="text-light tabular-nums" id="kpiLifetime">-</strong>
                 </div>
             </div>
 
-            <div class="col-12 col-sm-6 col-xl-3">
-                <div class="card-custom p-3 h-100">
-                    <div class="d-flex justify-content-between align-items-center text-secondary mb-1">
-                        <span class="small fw-semibold">Cache-Effizienz</span>
-                        <span class="text-warning fs-5">{{icon:zap}}</span>
+            <!-- 2. Cache Efficiency -->
+            <div class="card-custom p-3 d-flex flex-column justify-content-between">
+                <div>
+                    <div class="d-flex justify-content-between align-items-center text-secondary mb-2">
+                        <span class="small fw-medium">Cache-Effizienz</span>
+                        <span class="kpi-icon-box bg-warning bg-opacity-10 text-warning">{{icon:zap}}</span>
                     </div>
                     <div class="d-flex align-items-baseline gap-2">
-                        <h2 class="fw-bold mb-0 text-warning" id="kpiCacheRatio">-%</h2>
-                        <span class="small text-secondary" id="kpiCacheCount">0 Treffer</span>
+                        <div class="kpi-value text-warning" id="kpiCacheRatio">-%</div>
+                        <span class="small text-secondary tabular-nums" id="kpiCacheCount">0 Treffer</span>
                     </div>
-                    <div class="small text-secondary mt-2">
-                        Aktive Cache-Objekte: <strong class="text-light" id="kpiCacheObjects">-</strong>
-                    </div>
+                </div>
+                <div class="small text-secondary mt-2 pt-2 border-top border-secondary border-opacity-10 d-flex justify-content-between">
+                    <span>Aktive Objekte</span>
+                    <strong class="text-light tabular-nums" id="kpiCacheObjects">-</strong>
                 </div>
             </div>
 
-            <div class="col-12 col-sm-6 col-xl-3">
-                <div class="card-custom p-3 h-100">
-                    <div class="d-flex justify-content-between align-items-center text-secondary mb-1">
-                        <span class="small fw-semibold">Valkey-Status</span>
-                        <span class="text-info fs-5">{{icon:database}}</span>
+            <!-- 3. Valkey Status -->
+            <div class="card-custom p-3 d-flex flex-column justify-content-between">
+                <div>
+                    <div class="d-flex justify-content-between align-items-center text-secondary mb-2">
+                        <span class="small fw-medium">Valkey-Backend</span>
+                        <span class="kpi-icon-box bg-info bg-opacity-10 text-info">{{icon:database}}</span>
                     </div>
-                    <div class="d-flex align-items-baseline gap-2">
-                        <h2 class="fw-bold mb-0 text-info" id="kpiValkeyBackend">-</h2>
-                        <span class="small text-secondary" id="kpiValkeyHitRatio">-</span>
+                    <div class="d-flex align-items-baseline justify-content-between gap-2">
+                        <div class="kpi-value text-info" id="kpiValkeyBackend">-</div>
+                        <span class="small text-secondary tabular-nums" id="kpiValkeyHitRatio">-</span>
                     </div>
-                    <div class="small text-secondary mt-2">
-                        Memory: <strong class="text-light" id="kpiValkeyMemory">-</strong>
+                    <div class="d-flex justify-content-between align-items-center small text-secondary mt-2" style="font-size: 0.74rem;">
+                        <span>RAM: <strong class="text-light tabular-nums" id="kpiValkeyMemory">-</strong></span>
+                        <span class="d-none" id="kpiValkeyEviction">
+                            <span class="badge bg-danger bg-opacity-25 text-danger border border-danger border-opacity-25">{{icon:triangle-alert:me-1}}<span id="kpiValkeyEvictionCount">0</span></span>
+                        </span>
                     </div>
-                    <div class="progress mt-1" style="height: 6px; background: #1f2937;">
+                    <div class="progress mt-1" style="height: 5px; background: #1e293b;">
                         <div class="progress-bar" id="kpiValkeyMemoryBar" role="progressbar" style="width: 0%; background: #3b82f6;" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100"></div>
                     </div>
-                    <div class="small text-secondary mt-1">
-                        Keys: <strong class="text-light" id="kpiValkeyKeys">-</strong>
-                    </div>
-                    <div class="small mt-1 d-none" id="kpiValkeyEviction">
-                        <span class="badge bg-danger bg-opacity-25 text-danger border border-danger border-opacity-25">{{icon:triangle-alert:me-1}}<span id="kpiValkeyEvictionCount">0</span> Evictions</span>
-                    </div>
+                </div>
+                <div class="small text-secondary mt-2 pt-2 border-top border-secondary border-opacity-10 text-truncate" id="kpiValkeyKeysWrap" title="">
+                    Keys: <strong class="text-light tabular-nums" id="kpiValkeyKeys">-</strong>
                 </div>
             </div>
 
-            <div class="col-12 col-sm-6 col-xl-3">
-                <div class="card-custom p-3 h-100">
-                    <div class="d-flex justify-content-between align-items-center text-secondary mb-1">
-                        <span class="small fw-semibold">Durchschnittliche Latenz</span>
-                        <span class="text-info fs-5">{{icon:timer}}</span>
+            <!-- 4. Latency -->
+            <div class="card-custom p-3 d-flex flex-column justify-content-between">
+                <div>
+                    <div class="d-flex justify-content-between align-items-center text-secondary mb-2">
+                        <span class="small fw-medium">Ø Latenz</span>
+                        <span class="kpi-icon-box bg-info bg-opacity-10 text-info">{{icon:timer}}</span>
                     </div>
                     <div class="d-flex align-items-baseline gap-2">
-                        <h2 class="fw-bold mb-0 text-info" id="kpiLatency">- ms</h2>
-                        <span class="small text-secondary">Ø Response Time</span>
+                        <div class="kpi-value text-info" id="kpiLatency">- ms</div>
+                        <span class="small text-secondary">Antwortzeit</span>
                     </div>
-                    <div class="small text-secondary mt-2">
-                        Letzte 60 Sek.: <strong class="text-light" id="kpiLatency60s">- ms</strong>
-                    </div>
+                </div>
+                <div class="small text-secondary mt-2 pt-2 border-top border-secondary border-opacity-10 d-flex justify-content-between">
+                    <span>Letzte 60 Sek.</span>
+                    <strong class="text-light tabular-nums" id="kpiLatency60s">- ms</strong>
                 </div>
             </div>
 
-            <div class="col-12 col-sm-6 col-xl-3">
-                <div class="card-custom p-3 h-100">
-                    <div class="d-flex justify-content-between align-items-center text-secondary mb-1">
-                        <span class="small fw-semibold">Fehlerquote & Uptime</span>
-                        <span class="text-success fs-5">{{icon:shield-check}}</span>
+            <!-- 5. Error Rate & Uptime -->
+            <div class="card-custom p-3 d-flex flex-column justify-content-between">
+                <div>
+                    <div class="d-flex justify-content-between align-items-center text-secondary mb-2">
+                        <span class="small fw-medium">Fehlerquote & Uptime</span>
+                        <span class="kpi-icon-box bg-success bg-opacity-10 text-success">{{icon:shield-check}}</span>
                     </div>
                     <div class="d-flex align-items-baseline gap-2">
-                        <h2 class="fw-bold mb-0 text-success" id="kpiErrorRate">0.0%</h2>
-                        <span class="small text-secondary" id="kpiErrors">0 Fehler</span>
+                        <div class="kpi-value text-success" id="kpiErrorRate">0.0%</div>
+                        <span class="small text-secondary tabular-nums" id="kpiErrors">0 Fehler</span>
                     </div>
-                    <div class="small text-secondary mt-2">
-                        Gateway Uptime: <strong class="text-light" id="kpiUptime">-</strong>
-                    </div>
+                </div>
+                <div class="small text-secondary mt-2 pt-2 border-top border-secondary border-opacity-10 d-flex justify-content-between">
+                    <span>Uptime</span>
+                    <strong class="text-light tabular-nums" id="kpiUptime">-</strong>
                 </div>
             </div>
         </div>
@@ -227,8 +357,10 @@
             <div class="col-12 col-lg-8">
                 <div class="card-custom p-3 h-100">
                     <div class="d-flex justify-content-between align-items-center mb-3">
-                        <h6 class="fw-bold mb-0 text-light">{{icon:chart-column:text-primary:me-2}}Anfragevolumen & Cache-Treffer</h6>
-                        <span class="badge bg-secondary bg-opacity-25 text-secondary border border-secondary border-opacity-25" id="chartRangeLabel">24 Stunden</span>
+                        <h6 class="fw-semibold mb-0 text-light d-flex align-items-center gap-2">
+                            {{icon:chart-column:text-primary}}Anfragevolumen & Cache-Treffer
+                        </h6>
+                        <span class="badge bg-secondary bg-opacity-10 text-secondary border border-secondary border-opacity-25 rounded-pill px-2 py-1" id="chartRangeLabel">24 Stunden</span>
                     </div>
                     <div style="position: relative; height: 260px;">
                         <canvas id="trafficChart"></canvas>
@@ -239,7 +371,9 @@
             <div class="col-12 col-lg-4">
                 <div class="card-custom p-3 h-100">
                     <div class="d-flex justify-content-between align-items-center mb-3">
-                        <h6 class="fw-bold mb-0 text-light">{{icon:chart-pie:text-info:me-2}}HTTP Statusverteilung</h6>
+                        <h6 class="fw-semibold mb-0 text-light d-flex align-items-center gap-2">
+                            {{icon:chart-pie:text-info}}HTTP Statusverteilung
+                        </h6>
                     </div>
                     <div style="position: relative; height: 260px;">
                         <canvas id="statusChart"></canvas>
@@ -249,24 +383,29 @@
         </div>
 
         <!-- Tables Row: Top Endpoints & Live Requests Feed -->
-        <div class="row g-3">
+        <div class="row g-3 mb-4">
             <!-- Top Endpoints -->
             <div class="col-12 col-lg-6">
-                <div class="card-custom p-3 h-100">
-                    <h6 class="fw-bold mb-3 text-light">{{icon:trophy:text-warning:me-2}}Meistaufgerufene Endpunkte</h6>
-                    <div class="table-responsive">
+                <div class="card-custom p-0 h-100 overflow-hidden d-flex flex-column">
+                    <div class="p-3 border-bottom border-secondary border-opacity-10 d-flex justify-content-between align-items-center">
+                        <h6 class="fw-semibold mb-0 text-light d-flex align-items-center gap-2">
+                            {{icon:trophy:text-warning}}Meistaufgerufene Endpunkte
+                        </h6>
+                        <small class="text-secondary">Top 10</small>
+                    </div>
+                    <div class="table-responsive scroller" style="max-height: 380px; overflow-y: auto;">
                         <table class="table table-custom table-hover align-middle mb-0 small">
-                            <thead class="text-secondary">
+                            <thead class="sticky-top" style="background: #111827;">
                                 <tr>
-                                    <th>Methode</th>
+                                    <th class="ps-3">Methode</th>
                                     <th>Endpunkt</th>
                                     <th class="text-end">Aufrufe</th>
                                     <th class="text-end">Cache %</th>
-                                    <th class="text-end">Ø Latenz</th>
+                                    <th class="text-end pe-3">Ø Latenz</th>
                                 </tr>
                             </thead>
                             <tbody id="topEndpointsBody">
-                                <tr><td colspan="5" class="text-center text-secondary py-3">Lade Statistiken...</td></tr>
+                                <tr><td colspan="5" class="text-center text-secondary py-4">Lade Statistiken...</td></tr>
                             </tbody>
                         </table>
                     </div>
@@ -275,26 +414,26 @@
 
             <!-- Real-Time Stream -->
             <div class="col-12 col-lg-6">
-                <div class="card-custom p-3 h-100">
-                    <div class="d-flex justify-content-between align-items-center mb-3">
-                        <h6 class="fw-bold mb-0 text-light">
-                            <span class="live-dot me-2"></span>Echtzeit-Anfragenfeed
+                <div class="card-custom p-0 h-100 overflow-hidden d-flex flex-column">
+                    <div class="p-3 border-bottom border-secondary border-opacity-10 d-flex justify-content-between align-items-center">
+                        <h6 class="fw-semibold mb-0 text-light d-flex align-items-center gap-2">
+                            <span class="live-dot"></span>Echtzeit-Anfragenfeed
                         </h6>
-                        <small class="text-secondary">Letzte Aufrufe</small>
+                        <small class="text-secondary">Letzte 40 Aufrufe</small>
                     </div>
-                    <div class="table-responsive" style="max-height: 380px; overflow-y: auto;">
+                    <div class="table-responsive scroller" style="max-height: 380px; overflow-y: auto;">
                         <table class="table table-custom table-hover align-middle mb-0 small">
-                            <thead class="text-secondary sticky-top" style="background: #111827;">
+                            <thead class="sticky-top" style="background: #111827;">
                                 <tr>
-                                    <th>Zeit</th>
+                                    <th class="ps-3">Zeit</th>
                                     <th>Methode</th>
                                     <th>Pfad</th>
                                     <th>Status</th>
-                                    <th class="text-end">Latenz</th>
+                                    <th class="text-end pe-3">Latenz</th>
                                 </tr>
                             </thead>
                             <tbody id="liveRequestsBody">
-                                <tr><td colspan="5" class="text-center text-secondary py-3">Warte auf Live-Daten...</td></tr>
+                                <tr><td colspan="5" class="text-center text-secondary py-4">Warte auf Live-Daten...</td></tr>
                             </tbody>
                         </table>
                     </div>
@@ -305,27 +444,31 @@
         <!-- Fehlerprotokoll & Begründungen -->
         <div class="row g-3 mb-4" id="errorsSection" style="display: none;">
             <div class="col-12">
-                <div class="card p-3 border-danger" style="background: rgba(239, 68, 68, 0.05);">
-                    <div class="d-flex justify-content-between align-items-center mb-2">
-                        <h6 class="fw-bold mb-0 text-danger d-flex align-items-center gap-2">
-                            <span>⚠️</span> Letzte Fehler & Begründungen
-                            <span class="badge bg-danger rounded-pill" id="errorsCountBadge">0</span>
+                <div class="card-custom p-0 overflow-hidden" style="border-color: rgba(239, 68, 68, 0.35);">
+                    <div class="p-3 border-bottom border-danger border-opacity-25 d-flex flex-wrap justify-content-between align-items-center gap-2" style="background: rgba(239, 68, 68, 0.06);">
+                        <h6 class="fw-semibold mb-0 text-danger d-flex align-items-center gap-2">
+                            {{icon:triangle-alert}} Letzte Fehler & Begründungen
+                            <span class="badge bg-danger rounded-pill tabular-nums" id="errorsCountBadge">0</span>
                         </h6>
                         <div class="d-flex gap-2">
-                            <button class="btn btn-sm btn-outline-secondary text-light" onclick="clearGatewayErrors()" title="Fehlerprotokoll zurücksetzen">Fehler löschen</button>
-                            <a href="/dashboard/errors" class="btn btn-sm btn-primary">Fehlerprotokoll öffnen →</a>
+                            <button class="btn btn-sm btn-outline-secondary rounded-pill px-3 text-light" id="btnClearErrorsInline" onclick="clearGatewayErrors()" title="Fehlerprotokoll zurücksetzen">
+                                {{icon:trash-2:me-1}}Fehler löschen
+                            </button>
+                            <a href="/dashboard/errors" class="btn btn-sm btn-danger rounded-pill px-3">
+                                Fehlerprotokoll öffnen →
+                            </a>
                         </div>
                     </div>
-                    <div class="table-responsive" style="max-height: 240px; overflow-y: auto;">
+                    <div class="table-responsive scroller" style="max-height: 250px; overflow-y: auto;">
                         <table class="table table-custom table-hover align-middle mb-0 small">
-                            <thead class="text-secondary sticky-top" style="background: #111827;">
+                            <thead class="sticky-top" style="background: #111827;">
                                 <tr>
-                                    <th>Zeit</th>
+                                    <th class="ps-3">Zeit</th>
                                     <th>Methode</th>
                                     <th>Pfad</th>
                                     <th>Status</th>
                                     <th>Fehlertyp</th>
-                                    <th>Begründung / Ursache</th>
+                                    <th class="pe-3">Begründung / Ursache</th>
                                 </tr>
                             </thead>
                             <tbody id="errorsTableBody">
@@ -345,17 +488,21 @@
         let lastStatusHash = null;
         let lastTopEndpointsHash = null;
         let lastLiveFeedHash = null;
+        let clearCacheConfirmPending = false;
+        let clearCacheConfirmTimeout = null;
 
         function setRange(range) {
             currentRange = range;
             document.querySelectorAll('.range-btn').forEach(btn => {
-                btn.classList.remove('btn-primary');
-                btn.classList.add('btn-dark');
+                if (btn.getAttribute('data-range') === range) {
+                    btn.classList.remove('btn-link', 'text-secondary');
+                    btn.classList.add('btn-primary');
+                } else {
+                    btn.classList.remove('btn-primary');
+                    btn.classList.add('btn-link', 'text-secondary');
+                }
             });
-            event.target.classList.remove('btn-dark');
-            event.target.classList.add('btn-primary');
             document.getElementById('chartRangeLabel').textContent = range === '24h' ? '24 Stunden' : (range === '7d' ? '7 Tage' : '30 Tage');
-            // Reset hashes so new range renders immediately
             lastTrafficHash = null;
             lastStatusHash = null;
             lastTopEndpointsHash = null;
@@ -369,19 +516,19 @@
 
         function getMethodBadge(method) {
             const m = (method || 'GET').toUpperCase();
-            if (m === 'GET') return '<span class="badge badge-method-get px-2 py-1">GET</span>';
-            if (m === 'POST') return '<span class="badge badge-method-post px-2 py-1">POST</span>';
-            if (m === 'PUT') return '<span class="badge badge-method-put px-2 py-1">PUT</span>';
-            if (m === 'DELETE') return '<span class="badge badge-method-delete px-2 py-1">DELETE</span>';
-            return `<span class="badge bg-secondary px-2 py-1">${m}</span>`;
+            if (m === 'GET') return '<span class="badge badge-method badge-method-get rounded-1 py-1">GET</span>';
+            if (m === 'POST') return '<span class="badge badge-method badge-method-post rounded-1 py-1">POST</span>';
+            if (m === 'PUT') return '<span class="badge badge-method badge-method-put rounded-1 py-1">PUT</span>';
+            if (m === 'DELETE') return '<span class="badge badge-method badge-method-delete rounded-1 py-1">DELETE</span>';
+            return `<span class="badge badge-method bg-secondary rounded-1 py-1">${m}</span>`;
         }
 
         function getStatusBadge(code) {
             const c = parseInt(code, 10);
-            if (c >= 200 && c < 300) return `<span class="badge bg-success bg-opacity-25 text-success border border-success border-opacity-25">${c}</span>`;
-            if (c >= 300 && c < 400) return `<span class="badge bg-info bg-opacity-25 text-info border border-info border-opacity-25">${c}</span>`;
-            if (c >= 400 && c < 500) return `<span class="badge bg-warning bg-opacity-25 text-warning border border-warning border-opacity-25">${c}</span>`;
-            return `<span class="badge bg-danger bg-opacity-25 text-danger border border-danger border-opacity-25">${c}</span>`;
+            if (c >= 200 && c < 300) return `<span class="badge bg-success bg-opacity-10 text-success border border-success border-opacity-25 tabular-nums">${c}</span>`;
+            if (c >= 300 && c < 400) return `<span class="badge bg-info bg-opacity-10 text-info border border-info border-opacity-25 tabular-nums">${c}</span>`;
+            if (c >= 400 && c < 500) return `<span class="badge bg-warning bg-opacity-10 text-warning border border-warning border-opacity-25 tabular-nums">${c}</span>`;
+            return `<span class="badge bg-danger bg-opacity-10 text-danger border border-danger border-opacity-25 tabular-nums">${c}</span>`;
         }
 
         async function loadStats() {
@@ -393,7 +540,6 @@
                 }
                 const data = await res.json();
 
-                // Update KPIs
                 const sum = data.summary;
                 const live = data.live;
                 document.getElementById('kpiTotalReq').textContent = Number(sum.total_requests).toLocaleString('de-DE');
@@ -401,29 +547,24 @@
                 document.getElementById('kpiLifetime').textContent = Number(live.lifetime_total).toLocaleString('de-DE');
 
                 document.getElementById('kpiCacheRatio').textContent = `${sum.cache_hit_ratio_pct}%`;
-                document.getElementById('kpiCacheCount').textContent = `${sum.cache_hits} Treffer`;
-                document.getElementById('kpiCacheObjects').textContent = data.cloud_status.cached_entities_count;
+                document.getElementById('kpiCacheCount').textContent = `${Number(sum.cache_hits).toLocaleString('de-DE')} Treffer`;
+                document.getElementById('kpiCacheObjects').textContent = Number(data.cloud_status.cached_entities_count).toLocaleString('de-DE');
 
                 document.getElementById('kpiLatency').textContent = `${sum.avg_latency_ms} ms`;
                 document.getElementById('kpiLatency60s').textContent = `${live.avg_latency_60s_ms} ms`;
 
                 document.getElementById('kpiErrorRate').textContent = `${sum.error_rate_pct}%`;
-                document.getElementById('kpiErrors').textContent = `${sum.error_requests} Fehler`;
+                document.getElementById('kpiErrors').textContent = `${Number(sum.error_requests).toLocaleString('de-DE')} Fehler`;
                 document.getElementById('kpiUptime').textContent = live.uptime_formatted;
 
                 if (sum.error_rate_pct > 5) {
-                    document.getElementById('kpiErrorRate').className = 'fw-bold mb-0 text-danger';
+                    document.getElementById('kpiErrorRate').className = 'kpi-value text-danger';
                 } else {
-                    document.getElementById('kpiErrorRate').className = 'fw-bold mb-0 text-success';
+                    document.getElementById('kpiErrorRate').className = 'kpi-value text-success';
                 }
 
-                // Render Traffic Chart (mit Datenvergleich & ohne störende Neu-Animation)
                 renderTrafficChart(data.timeseries);
-
-                // Render Status Chart (mit Datenvergleich & ohne störende Neu-Animation)
                 renderStatusChart(data.status_codes);
-
-                // Render Top Endpoints
                 renderTopEndpoints(data.top_endpoints);
             } catch (err) {
                 console.error('Error loading stats:', err);
@@ -438,14 +579,13 @@
 
             const hash = JSON.stringify({ labels, directData, cachedData, errorData });
             if (hash === lastTrafficHash && trafficChart) {
-                return; // Keine Datenänderung: kein Re-Render
+                return;
             }
             lastTrafficHash = hash;
 
             const ctx = document.getElementById('trafficChart').getContext('2d');
 
             if (trafficChart) {
-                // Bestehende Chart-Instanz aktualisieren ohne Zerstören und ohne Animation
                 trafficChart.data.labels = labels;
                 trafficChart.data.datasets[0].data = directData;
                 trafficChart.data.datasets[1].data = cachedData;
@@ -454,7 +594,6 @@
                 return;
             }
 
-            // Initiale Erstellung (Animation deaktiviert für sofortige, flimmerfreie Anzeige)
             trafficChart = new Chart(ctx, {
                 type: 'bar',
                 data: {
@@ -488,11 +627,11 @@
                     maintainAspectRatio: false,
                     animation: false,
                     scales: {
-                        x: { stacked: true, grid: { color: '#1f2937' }, ticks: { color: '#94a3b8' } },
-                        y: { stacked: true, beginAtZero: true, grid: { color: '#1f2937' }, ticks: { color: '#94a3b8', precision: 0 } }
+                        x: { stacked: true, grid: { color: 'rgba(148, 163, 184, 0.08)' }, ticks: { color: '#94a3b8' } },
+                        y: { stacked: true, beginAtZero: true, grid: { color: 'rgba(148, 163, 184, 0.08)' }, ticks: { color: '#94a3b8', precision: 0 } }
                     },
                     plugins: {
-                        legend: { position: 'top', labels: { color: '#cbd5e1', font: { size: 12 } } },
+                        legend: { position: 'top', labels: { color: '#cbd5e1', usePointStyle: true, boxWidth: 8, font: { size: 12 } } },
                         tooltip: { mode: 'index', intersect: false }
                     }
                 }
@@ -513,19 +652,18 @@
             if (labels.length === 0) {
                 labels = ['Keine Daten'];
                 data = [1];
-                colors = ['#374151'];
+                colors = ['#1e293b'];
             }
 
             const hash = JSON.stringify({ labels, data });
             if (hash === lastStatusHash && statusChart) {
-                return; // Keine Datenänderung: kein Re-Render
+                return;
             }
             lastStatusHash = hash;
 
             const ctx = document.getElementById('statusChart').getContext('2d');
 
             if (statusChart) {
-                // Bestehende Chart-Instanz aktualisieren ohne Zerstören und ohne Animation
                 statusChart.data.labels = labels;
                 statusChart.data.datasets[0].data = data;
                 statusChart.data.datasets[0].backgroundColor = colors;
@@ -533,19 +671,18 @@
                 return;
             }
 
-            // Initiale Erstellung (Animation deaktiviert)
             statusChart = new Chart(ctx, {
                 type: 'doughnut',
                 data: {
                     labels: labels,
-                    datasets: [{ data: data, backgroundColor: colors, borderWidth: 0 }]
+                    datasets: [{ data: data, backgroundColor: colors, borderWidth: 0, cutout: '68%' }]
                 },
                 options: {
                     responsive: true,
                     maintainAspectRatio: false,
                     animation: false,
                     plugins: {
-                        legend: { position: 'bottom', labels: { color: '#cbd5e1', font: { size: 11 } } }
+                        legend: { position: 'bottom', labels: { color: '#cbd5e1', usePointStyle: true, boxWidth: 8, font: { size: 11 } } }
                     }
                 }
             });
@@ -560,18 +697,18 @@
 
             const tbody = document.getElementById('topEndpointsBody');
             if (!endpoints || endpoints.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="5" class="text-center text-secondary py-3">Noch keine Anfragen erfasst</td></tr>';
+                tbody.innerHTML = '<tr><td colspan="5" class="text-center text-secondary py-4">Noch keine Anfragen erfasst</td></tr>';
                 return;
             }
 
             tbody.innerHTML = endpoints.map(ep => {
                 const cachePct = ep.count > 0 ? Math.round((ep.cache_hits / ep.count) * 100) : 0;
                 return `<tr>
-                    <td>${getMethodBadge(ep.method)}</td>
-                    <td class="font-monospace text-light text-truncate" style="max-width: 200px;" title="${ep.path}">${ep.path}</td>
-                    <td class="text-end fw-bold text-light">${Number(ep.count).toLocaleString('de-DE')}</td>
-                    <td class="text-end text-warning">${cachePct}%</td>
-                    <td class="text-end text-info">${ep.avg_ms} ms</td>
+                    <td class="ps-3">${getMethodBadge(ep.method)}</td>
+                    <td class="font-monospace text-light text-truncate" style="max-width: 240px;" title="${ep.path}">${ep.path}</td>
+                    <td class="text-end fw-semibold text-light tabular-nums">${Number(ep.count).toLocaleString('de-DE')}</td>
+                    <td class="text-end text-warning tabular-nums">${cachePct}%</td>
+                    <td class="text-end text-info tabular-nums pe-3">${ep.avg_ms} ms</td>
                 </tr>`;
             }).join('');
         }
@@ -582,7 +719,7 @@
                 if (!res.ok) return;
                 const data = await res.json();
 
-                const hash = JSON.stringify(data.recent || []);
+                const hash = JSON.stringify({ r: data.recent || [], e: data.recent_errors || [] });
                 if (hash === lastLiveFeedHash) {
                     return;
                 }
@@ -590,22 +727,20 @@
 
                 const tbody = document.getElementById('liveRequestsBody');
                 if (!data.recent || data.recent.length === 0) {
-                    tbody.innerHTML = '<tr><td colspan="5" class="text-center text-secondary py-3">Noch keine Requests vorhanden</td></tr>';
-                    return;
+                    tbody.innerHTML = '<tr><td colspan="5" class="text-center text-secondary py-4">Noch keine Requests vorhanden</td></tr>';
+                } else {
+                    tbody.innerHTML = data.recent.map(r => {
+                        const cacheBadge = r.cached ? '<span class="badge bg-warning bg-opacity-10 text-warning border border-warning border-opacity-25 ms-1" style="font-size: 0.62rem;">HIT</span>' : '';
+                        return `<tr>
+                            <td class="ps-3 text-secondary tabular-nums">${r.time}</td>
+                            <td>${getMethodBadge(r.method)}</td>
+                            <td class="font-monospace text-light text-truncate" style="max-width: 210px;" title="${r.path}">${r.path}${cacheBadge}</td>
+                            <td>${getStatusBadge(r.status_code)}</td>
+                            <td class="text-end text-secondary tabular-nums pe-3">${r.duration_ms} ms</td>
+                        </tr>`;
+                    }).join('');
                 }
 
-                tbody.innerHTML = data.recent.map(r => {
-                    const cacheBadge = r.cached ? '<span class="badge bg-warning bg-opacity-10 text-warning ms-1" style="font-size: 0.65rem;">CACHE</span>' : '';
-                    return `<tr>
-                        <td class="text-secondary">${r.time}</td>
-                        <td>${getMethodBadge(r.method)}</td>
-                        <td class="font-monospace text-light text-truncate" style="max-width: 180px;" title="${r.path}">${r.path}${cacheBadge}</td>
-                        <td>${getStatusBadge(r.status_code)}</td>
-                        <td class="text-end text-secondary">${r.duration_ms} ms</td>
-                    </tr>`;
-                }).join('');
-
-                // Update Errors Section & Nav Badge
                 const errorsSec = document.getElementById('errorsSection');
                 const errorsBody = document.getElementById('errorsTableBody');
                 const errorsBadge = document.getElementById('errorsCountBadge');
@@ -629,12 +764,12 @@
                             const escBegruendung = (err.begruendung || err.message || '').replace(/[&<>"']/g, m => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'}[m]));
                             const escPath = (err.path || '').replace(/[&<>"']/g, m => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'}[m]));
                             return `<tr>
-                                <td class="text-secondary">${err.time || ''}</td>
+                                <td class="ps-3 text-secondary tabular-nums">${err.time || ''}</td>
                                 <td>${getMethodBadge(err.method)}</td>
-                                <td class="font-monospace text-light text-truncate" style="max-width: 160px;" title="${escPath}">${escPath}</td>
+                                <td class="font-monospace text-light text-truncate" style="max-width: 180px;" title="${escPath}">${escPath}</td>
                                 <td>${getStatusBadge(err.status_code)}</td>
-                                <td><span class="badge bg-danger bg-opacity-25 text-danger">${err.error_type || 'Error'}</span></td>
-                                <td class="text-light" style="max-width: 400px; word-break: break-word;" title="${escBegruendung}">${escBegruendung}</td>
+                                <td><span class="badge bg-danger bg-opacity-10 text-danger border border-danger border-opacity-25">${err.error_type || 'Error'}</span></td>
+                                <td class="text-light pe-3" style="max-width: 420px; word-break: break-word;" title="${escBegruendung}">${escBegruendung}</td>
                             </tr>`;
                         }).join('');
                     } else {
@@ -647,10 +782,10 @@
         }
 
         async function clearGatewayErrors() {
-            if (!confirm('Fehlerprotokoll wirklich leeren?')) return;
             try {
                 const res = await fetch('/dashboard/api/errors', { method: 'DELETE' });
                 if (res.ok) {
+                    lastLiveFeedHash = null;
                     await loadLiveFeed();
                 }
             } catch (err) {
@@ -670,23 +805,40 @@
                 const hitEl = document.getElementById('kpiValkeyHitRatio');
                 const memEl = document.getElementById('kpiValkeyMemory');
                 const keysEl = document.getElementById('kpiValkeyKeys');
+                const keysWrapEl = document.getElementById('kpiValkeyKeysWrap');
                 const memBarEl = document.getElementById('kpiValkeyMemoryBar');
                 const evictionEl = document.getElementById('kpiValkeyEviction');
                 const evictionCountEl = document.getElementById('kpiValkeyEvictionCount');
 
+                const kc = data.key_counts || {};
+                const labels = data.key_labels || {
+                    'kalender': 'Kalender',
+                    'fahrlehrer': 'Fahrlehrer',
+                    'schueler': 'Schüler',
+                    'fahrstunden': 'Fahrstunden',
+                    'leistungen': 'Leistungen',
+                    'auth': 'FSM-Auth',
+                    'webhooks': 'Webhooks'
+                };
+                const keyParts = Object.entries(kc)
+                    .filter(([_, count]) => count > 0)
+                    .map(([k, v]) => `${labels[k] || k}: ${v}`)
+                    .join(' · ');
+                const fullKeySummary = `${data.total_keys ?? 0} gesamt${keyParts ? ' — ' + keyParts : ''}`;
+                keysEl.textContent = fullKeySummary;
+                if (keysWrapEl) keysWrapEl.title = fullKeySummary;
+
                 if (backend.connected) {
                     backendEl.textContent = 'Valkey';
-                    backendEl.className = 'fw-bold mb-0 text-info';
-                    hitEl.textContent = `${vk.hit_ratio_pct ?? 0}% Hit-Ratio`;
+                    backendEl.className = 'kpi-value text-info';
+                    hitEl.textContent = `${vk.hit_ratio_pct ?? 0}% Hits`;
                     memEl.textContent = `${vk.used_memory_human || '-'} / ${vk.maxmemory_human || '-'} (${vk.memory_usage_pct ?? 0}%)`;
 
-                    // Memory-Balken: Farbe nach Auslastung (blau <70%, gelb <90%, rot >=90%)
                     const memPct = vk.memory_usage_pct ?? 0;
                     memBarEl.style.width = `${Math.min(100, memPct)}%`;
                     memBarEl.style.background = memPct >= 90 ? '#ef4444' : (memPct >= 70 ? '#f59e0b' : '#3b82f6');
                     memBarEl.setAttribute('aria-valuenow', String(memPct));
 
-                    // Eviction-Warnung nur bei evicted_keys > 0
                     const evicted = vk.evicted_keys ?? 0;
                     if (evicted > 0) {
                         evictionCountEl.textContent = evicted;
@@ -694,45 +846,13 @@
                     } else {
                         evictionEl.classList.add('d-none');
                     }
-
-                    const kc = data.key_counts || {};
-                    const labels = data.key_labels || {
-                        'kalender': 'Kalender',
-                        'fahrlehrer': 'Fahrlehrer',
-                        'schueler': 'Schüler',
-                        'fahrstunden': 'Fahrstunden',
-                        'leistungen': 'Leistungen',
-                        'auth': 'FSM-Auth',
-                        'webhooks': 'Webhooks'
-                    };
-                    const keyParts = Object.entries(kc)
-                        .filter(([_, count]) => count > 0)
-                        .map(([k, v]) => `${labels[k] || k}: ${v}`)
-                        .join(' · ');
-                    keysEl.textContent = `${data.total_keys ?? 0} gesamt${keyParts ? ' — ' + keyParts : ''}`;
                 } else {
                     backendEl.textContent = 'Memory';
-                    backendEl.className = 'fw-bold mb-0 text-warning';
+                    backendEl.className = 'kpi-value text-warning';
                     hitEl.textContent = 'Fallback aktiv';
-                    memEl.textContent = '—';
+                    memEl.textContent = 'In-Memory';
                     memBarEl.style.width = '0%';
                     evictionEl.classList.add('d-none');
-
-                    const kc = data.key_counts || {};
-                    const labels = data.key_labels || {
-                        'kalender': 'Kalender',
-                        'fahrlehrer': 'Fahrlehrer',
-                        'schueler': 'Schüler',
-                        'fahrstunden': 'Fahrstunden',
-                        'leistungen': 'Leistungen',
-                        'auth': 'FSM-Auth',
-                        'webhooks': 'Webhooks'
-                    };
-                    const keyParts = Object.entries(kc)
-                        .filter(([_, count]) => count > 0)
-                        .map(([k, v]) => `${labels[k] || k}: ${v}`)
-                        .join(' · ');
-                    keysEl.textContent = `${data.total_keys ?? 0} gesamt${keyParts ? ' — ' + keyParts : ''}`;
                 }
             } catch (err) {
                 console.error('Error loading Valkey status:', err);
@@ -741,10 +861,23 @@
 
         async function clearGatewayCache() {
             const btn = document.getElementById('btnClearCache');
-            if (!confirm('Möchtest du den gesamten Gateway-Cache leeren? Alle nächsten Abfragen (Kalender, Schüler, Fahrlehrer) werden dann live von FSM geladen.')) {
+            if (!clearCacheConfirmPending) {
+                clearCacheConfirmPending = true;
+                btn.classList.remove('btn-outline-warning');
+                btn.classList.add('btn-warning', 'text-dark');
+                btn.innerHTML = '{{icon:triangle-alert}}<span class="ms-1">Wirklich leeren?</span>';
+                clearTimeout(clearCacheConfirmTimeout);
+                clearCacheConfirmTimeout = setTimeout(() => {
+                    clearCacheConfirmPending = false;
+                    btn.classList.remove('btn-warning', 'text-dark');
+                    btn.classList.add('btn-outline-warning');
+                    btn.innerHTML = '{{icon:trash-2}}<span class="d-none d-md-inline ms-1">Cache leeren</span>';
+                }, 3500);
                 return;
             }
-            const originalHtml = btn.innerHTML;
+
+            clearTimeout(clearCacheConfirmTimeout);
+            clearCacheConfirmPending = false;
             btn.disabled = true;
             btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1" role="status"></span> Leere...';
             try {
@@ -752,25 +885,29 @@
                 const data = await resp.json();
                 if (resp.ok && data.success) {
                     btn.innerHTML = '{{icon:circle-check:me-1}} Geleert!';
-                    btn.classList.remove('btn-outline-warning');
+                    btn.classList.remove('btn-warning', 'text-dark', 'btn-outline-warning');
                     btn.classList.add('btn-success');
                     setTimeout(() => {
-                        btn.innerHTML = originalHtml;
+                        btn.innerHTML = '{{icon:trash-2}}<span class="d-none d-md-inline ms-1">Cache leeren</span>';
                         btn.classList.remove('btn-success');
                         btn.classList.add('btn-outline-warning');
                         btn.disabled = false;
-                    }, 2500);
-                    // Refresh stats and live view immediately
+                    }, 2200);
+                    lastTrafficHash = null;
+                    lastLiveFeedHash = null;
                     await loadStats();
                     await loadLiveFeed();
+                    await loadValkeyStatus();
                 } else {
-                    alert('Fehler beim Leeren des Caches: ' + (data.detail || data.message || 'Unbekannter Fehler'));
-                    btn.innerHTML = originalHtml;
+                    btn.innerHTML = '{{icon:trash-2}}<span class="d-none d-md-inline ms-1">Cache leeren</span>';
+                    btn.classList.remove('btn-warning', 'text-dark');
+                    btn.classList.add('btn-outline-warning');
                     btn.disabled = false;
                 }
             } catch (err) {
-                alert('Netzwerkfehler: ' + err);
-                btn.innerHTML = originalHtml;
+                btn.innerHTML = '{{icon:trash-2}}<span class="d-none d-md-inline ms-1">Cache leeren</span>';
+                btn.classList.remove('btn-warning', 'text-dark');
+                btn.classList.add('btn-outline-warning');
                 btn.disabled = false;
             }
         }
@@ -780,7 +917,6 @@
         loadLiveFeed();
         loadValkeyStatus();
 
-        // Refresh intervals: live feed every 3s, charts every 15s, valkey every 15s
         setInterval(loadLiveFeed, 3000);
         setInterval(loadStats, 15000);
         setInterval(loadValkeyStatus, 15000);

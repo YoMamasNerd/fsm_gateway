@@ -332,8 +332,10 @@ class ValkeyCache:
             payload = json.dumps(
                 {"v": value, "exp": expires_at}, ensure_ascii=False, default=_json_default
             )
-            # Keep alive in Valkey with extra margin for stale reads (24h)
-            valkey_ttl = int(duration + 86400)
+            # Keep calendar keys alive in Valkey with extra margin for SWR (24h);
+            # all other keys expire natively in Valkey after their exact TTL.
+            stale_margin = settings.CALENDAR_SWR_MAX_AGE_SECONDS if key.startswith("kalender:") else 0
+            valkey_ttl = max(1, int(duration + stale_margin))
             await self._redis.set(key, payload, ex=valkey_ttl)
         except Exception as exc:
             logger.exception("Valkey set Fehler für %s", key, exc_info=exc)

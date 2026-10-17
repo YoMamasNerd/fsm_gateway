@@ -62,3 +62,23 @@ async def test_internal_trusted_without_key(monkeypatch):
     async with client:
         resp = await client.get("/health")
     assert resp.status_code == 200  # not 401/403
+
+
+@pytest.mark.asyncio
+async def test_xff_spoofing_blocked():
+    """Spoofed leading X-Forwarded-For from public client (direct or via reverse proxy) is blocked."""
+    # Direct public caller forging X-Forwarded-For: 127.0.0.1
+    async with _public_client() as client:
+        resp = await client.get("/docs", headers={"X-Forwarded-For": "127.0.0.1"})
+    assert resp.status_code == 403
+
+    # Reverse proxy (172.18.0.5) forwarding a spoofed client header: "127.0.0.1, 203.0.113.50"
+    proxy_client = httpx.AsyncClient(
+        transport=httpx.ASGITransport(app=app, client=("172.18.0.5", 1234)),
+        base_url="http://testserver",
+    )
+    async with proxy_client:
+        resp_proxy = await proxy_client.get(
+            "/docs", headers={"X-Forwarded-For": "127.0.0.1, 203.0.113.50"}
+        )
+    assert resp_proxy.status_code == 403

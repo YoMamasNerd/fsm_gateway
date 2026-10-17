@@ -45,9 +45,13 @@ def _is_private_ip(ip: str) -> bool:
 async def _require_private_network(request: Request) -> None:
     client = request.client.host if request.client else ""
     forwarded_for = request.headers.get("X-Forwarded-For")
-    # Behind a reverse proxy the direct peer is the proxy (private); judge by
-    # the original client IP instead so public visitors stay blocked.
-    effective_ip = forwarded_for.split(",")[0].strip() if forwarded_for else client
+    # Behind a trusted private reverse proxy (e.g. Caddy), judge by the
+    # proxy-appended rightmost IP in X-Forwarded-For so spoofed leading entries
+    # (e.g. "X-Forwarded-For: 127.0.0.1" from a public caller) cannot bypass checks.
+    if forwarded_for and _is_private_ip(client):
+        effective_ip = forwarded_for.split(",")[-1].strip()
+    else:
+        effective_ip = client
     if not _is_private_ip(effective_ip):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,

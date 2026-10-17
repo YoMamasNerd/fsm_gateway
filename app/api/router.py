@@ -18,6 +18,7 @@ from app.api.v1.finanzen import router as direct_finanzen
 from app.api.v1.fuhrpark import router as direct_fuhrpark
 from app.api.v1.kalender import router as direct_kalender
 from app.api.v1.kassenbuch import router as direct_kassenbuch
+from app.api.v1.kontrolle import router as direct_kontrolle
 from app.api.v1.kurse import router as direct_kurse
 from app.api.v1.preislisten import router as direct_preislisten
 from app.api.v1.schueler import router as direct_schueler
@@ -39,6 +40,7 @@ compat_router.include_router(direct_preislisten)
 compat_router.include_router(direct_stammdaten)
 compat_router.include_router(direct_statistiken)
 compat_router.include_router(direct_kassenbuch)
+compat_router.include_router(direct_kontrolle)
 compat_router.include_router(direct_webhooks)
 compat_router.include_router(direct_errors)
 compat_router.include_router(direct_fehler)

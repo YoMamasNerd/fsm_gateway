@@ -24,6 +24,15 @@
   },
   "packageRules": [
     {
+      "matchDatasources": [
+        "docker"
+      ],
+      "matchPackageNames": [
+        "python"
+      ],
+      "allowedVersions": "<3.15"
+    },
+    {
       "matchManagers": [
         "uv"
       ],

@@ -57,7 +57,7 @@ async def test_metrics_collector_record_and_aggregate(temp_metrics):
 
 
 @pytest.mark.asyncio
-async def test_dashboard_endpoints():
+async def test_dashboard_endpoints(monkeypatch):
     transport = ASGITransport(app=app, client=("172.18.0.5", 1234))
     async with AsyncClient(transport=transport, base_url="http://test",
                            headers={"X-API-Key": "test-gateway-key"}) as client:
@@ -66,12 +66,24 @@ async def test_dashboard_endpoints():
         assert res.status_code == 200
         assert "fsm_gateway_uptime_seconds" in res.text
 
-        # 2. Dashboard HTML
+        # 2. Fail-closed when neither VoidAuth nor DASHBOARD_PASSWORD is configured
+        res_unauth_dash = await client.get("/dashboard")
+        assert res_unauth_dash.status_code == 200
+        assert "Authentifizierung für Dashboard erforderlich" in res_unauth_dash.text
+        assert (await client.get("/dashboard/api/stats?range=24h")).status_code == 401
+        assert (await client.post("/dashboard/api/login", json={"password": ""})).status_code == 401
+
+        # 3. Configure password and authenticate
+        monkeypatch.setattr(settings, "DASHBOARD_PASSWORD", "test-dash-pass")
+        login_res = await client.post("/dashboard/api/login", json={"password": "test-dash-pass"})
+        assert login_res.status_code == 200
+        client.cookies.set("fsm_dash_auth", login_res.cookies["fsm_dash_auth"])
+
         res_dash = await client.get("/dashboard")
         assert res_dash.status_code == 200
         assert "FSM Gateway" in res_dash.text
 
-        # 3. Dashboard Stats API
+        # 4. Dashboard Stats API
         res_stats = await client.get("/dashboard/api/stats?range=24h")
         assert res_stats.status_code == 200
         data = res_stats.json()
@@ -79,7 +91,7 @@ async def test_dashboard_endpoints():
         assert "timeseries" in data
         assert "top_endpoints" in data
 
-        # 4. Dashboard Live API
+        # 5. Dashboard Live API
         res_live = await client.get("/dashboard/api/live")
         assert res_live.status_code == 200
         live_data = res_live.json()

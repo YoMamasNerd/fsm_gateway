@@ -69,9 +69,9 @@ def _is_authenticated(
     auth_header: str | None = None,
 ) -> bool:
     """Checks if the user is authorized to access the dashboard."""
-    # If neither password nor VoidAuth SSO is configured, dashboard is open
+    # Fail-closed: if neither password nor VoidAuth SSO is configured, deny access
     if not settings.DASHBOARD_PASSWORD and not settings.VOIDAUTH_ENABLED:
-        return True
+        return False
 
     # 1. Check SSO signed session cookie
     if cookie_token and _verify_sso_session_token(cookie_token):
@@ -229,7 +229,7 @@ async def dashboard_sso_callback(
 @router.post("/dashboard/api/login", summary="Login to Gateway Dashboard")
 async def dashboard_login(payload: LoginRequest, response: Response) -> dict[str, Any]:
     """Validates dashboard password and sets auth cookie."""
-    if not settings.DASHBOARD_PASSWORD or hmac.compare_digest(payload.password, settings.DASHBOARD_PASSWORD):
+    if settings.DASHBOARD_PASSWORD and hmac.compare_digest(payload.password, settings.DASHBOARD_PASSWORD):
         token = _generate_session_token(settings.DASHBOARD_PASSWORD)
         response.set_cookie(
             key=SESSION_COOKIE_NAME,
@@ -351,10 +351,7 @@ async def dashboard_view(
     authorization: str | None = Header(None),
 ) -> HTMLResponse:
     """Serves the interactive monitoring web dashboard."""
-    is_auth = _is_authenticated(fsm_dash_auth, authorization)
-    requires_auth = bool(settings.DASHBOARD_PASSWORD or settings.VOIDAUTH_ENABLED)
-
-    if requires_auth and not is_auth:
+    if not _is_authenticated(fsm_dash_auth, authorization):
         return HTMLResponse(_render_login_html(redirect_to="/dashboard"))
 
     return HTMLResponse(_render_dashboard_html())
@@ -413,10 +410,7 @@ async def dashboard_errors_view(
     authorization: str | None = Header(None),
 ) -> HTMLResponse:
     """Serves the dedicated error log and explanations dashboard page."""
-    is_auth = _is_authenticated(fsm_dash_auth, authorization)
-    requires_auth = bool(settings.DASHBOARD_PASSWORD or settings.VOIDAUTH_ENABLED)
-
-    if requires_auth and not is_auth:
+    if not _is_authenticated(fsm_dash_auth, authorization):
         return HTMLResponse(_render_login_html(redirect_to="/dashboard/errors"))
 
     return HTMLResponse(_render_errors_html())
@@ -460,6 +454,12 @@ def _render_login_html(redirect_to: str = "/dashboard") -> str:
                 {icon('log-in', 'me-1')} Anmelden
             </button>
         </form>
+        """
+    elif not sso_enabled:
+        password_html = f"""
+        <div class="alert alert-warning py-2 px-3 small text-start mb-0">
+            {icon('triangle-alert', 'me-1')} Keine Authentifizierung konfiguriert (<code>VOIDAUTH_*</code> oder <code>DASHBOARD_PASSWORD</code> fehlt).
+        </div>
         """
 
     return f"""<!DOCTYPE html>

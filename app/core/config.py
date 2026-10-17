@@ -137,7 +137,7 @@ class Settings(BaseSettings):
     # Metrics & Dashboard Settings
     DASHBOARD_PASSWORD: str = Field(
         default="",
-        description="Optional password to protect /dashboard (if empty, accessible without password)",
+        description="Optional fallback password to protect /dashboard alongside or instead of VoidAuth SSO",
     )
     METRICS_DB_PATH: str = Field(
         default="data/metrics.db",

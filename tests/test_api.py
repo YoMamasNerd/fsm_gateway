@@ -326,7 +326,7 @@ async def test_sumup_webhook(async_client: httpx.AsyncClient):
 @pytest.mark.asyncio
 @respx.mock
 async def test_cache_hit_and_invalidation(async_client: httpx.AsyncClient):
-    fl_id = "test-fl-cache"
+    fl_id = "11111111-1111-4111-8111-111111111111"
 
     respx.get(f"https://api.fahrschulmanager.de/v1/termine/lehrer/{fl_id}").respond(
         status_code=200,
@@ -357,7 +357,7 @@ async def test_cache_hit_and_invalidation(async_client: httpx.AsyncClient):
 @pytest.mark.asyncio
 @respx.mock
 async def test_calendar_date_normalization_and_forced_refresh(async_client: httpx.AsyncClient):
-    fl_id = "test-fl-norm"
+    fl_id = "22222222-2222-4222-8222-222222222222"
 
     route = respx.get(f"https://api.fahrschulmanager.de/v1/termine/lehrer/{fl_id}").respond(
         status_code=200,
@@ -392,7 +392,7 @@ async def test_calendar_date_normalization_and_forced_refresh(async_client: http
 @pytest.mark.asyncio
 @respx.mock
 async def test_calendar_write_through_invalidation(async_client: httpx.AsyncClient):
-    fl_id = "test-fl-write-through"
+    fl_id = "33333333-3333-4333-8333-333333333333"
 
     route_get = respx.get(f"https://api.fahrschulmanager.de/v1/termine/lehrer/{fl_id}").respond(
         status_code=200,
@@ -461,3 +461,12 @@ async def test_unified_cache_operations():
 
 
 
+
+
+@pytest.mark.asyncio
+@respx.mock
+async def test_kalender_ungueltige_fahrlehrer_id_ohne_fsm_call(async_client: httpx.AsyncClient):
+    # Keine FSM-Mocks: wenn der Gateway die ungültige ID doch weiterleitet,
+    # scheitert respx an fehlender Route und der Test schlägt fehl.
+    resp = await async_client.get("/v1/kalender/fsm-lehrer-uuid-1?von=2026-08-20&bis=2026-08-21")
+    assert resp.status_code == 422

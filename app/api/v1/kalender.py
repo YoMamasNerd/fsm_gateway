@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import datetime as dt
 import logging
+import uuid as uuid_mod
 from typing import Any
 
 from fastapi import APIRouter, HTTPException, Path, Query, Request, Response, status
@@ -27,6 +28,14 @@ router = APIRouter(tags=["Kalender & Termine"])
 
 # In-flight revalidation tracker to avoid redundant concurrent requests
 _revalidating_keys: set[str] = set()
+
+
+def _valid_uuid(val: str | None) -> bool:
+    try:
+        uuid_mod.UUID(val or "")
+        return True
+    except ValueError:
+        return False
 
 
 def _parse_iso_datetime(val: Any) -> dt.datetime | None:
@@ -175,6 +184,13 @@ async def get_kalender(
     refresh: bool = Query(default=False, description="Erzwingt Live-Abruf und aktualisiert den Cache"),
 ) -> KalenderResponse:
     clean_fl_id = fahrlehrer_id.strip()
+    # Ungültige IDs nicht an FSM weiterleiten – dort enden sie als kaum
+    # rückverfolbarer FSM-404 im Fehler-Dashboard.
+    if not _valid_uuid(clean_fl_id):
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail=f"Ungültige Fahrlehrer-ID '{clean_fl_id}' – erwartet wird eine FSM-UUID.",
+        )
     # Deterministic date normalization (prevents microsecond cache misses)
     effective_start = _normalize_date_str(start or start_datum, dt.date.today())
     effective_end = _normalize_date_str(end or end_datum, dt.date.today() + dt.timedelta(days=7))

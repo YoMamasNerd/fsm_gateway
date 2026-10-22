@@ -521,7 +521,10 @@ class FSMClient:
                     elif "error" in err_json:
                         msg = str(err_json["error"])
 
-                logger.error("FSM API Error (%s) auf %s: %s", resp.status_code, url, msg)
+                # FSM 400/404 sind Fachantworten (Konflikt/unbekanntes Objekt),
+                # keine Gateway-Störungen – deshalb nur WARN, nicht ERROR.
+                log_fn = logger.warning if resp.status_code in (400, 404) else logger.error
+                log_fn("FSM API Error (%s) auf %s: %s", resp.status_code, url, msg)
                 raise FsmApiError(resp.status_code, msg, response_body=err_json or err_text)
 
             if not resp.text.strip():

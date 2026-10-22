@@ -13,7 +13,7 @@ from app.core.cache import cache, classify_cache_key
 @respx.mock
 async def test_x_cache_hit_headers_all_endpoints(async_client: httpx.AsyncClient):
     """Verifies X-Cache-Hit is reliably set across all GET/POST endpoints."""
-    fl_id = "test-fl-headers-123"
+    fl_id = "44444444-4444-4444-8444-444444444444"
     student_id = "test-student-headers-456"
 
     # Mock Fahrlehrer
@@ -126,7 +126,7 @@ async def test_x_cache_hit_headers_all_endpoints(async_client: httpx.AsyncClient
 @respx.mock
 async def test_double_caching_and_refresh_propagation(async_client: httpx.AsyncClient):
     """Ensures refresh=true bypasses both endpoint-level and fsm_client-level cache."""
-    fl_id = "test-double-cache-fl"
+    fl_id = "55555555-5555-4555-8555-555555555555"
     student_id = "test-double-cache-stu"
 
     fl_route = respx.get("https://api.fahrschulmanager.de/v1/lehrer/fahrlehrer")
@@ -210,7 +210,7 @@ async def test_payment_and_webhook_invalidates_all_student_caches(async_client: 
 @pytest.mark.asyncio
 async def test_whitespace_and_uuid_stripping(async_client: httpx.AsyncClient):
     """Ensures leading/trailing whitespace in path UUIDs does not create duplicate cache keys."""
-    fl_id = "  fl-with-spaces-123  "
+    fl_id = "  66666666-6666-4666-8666-666666666666  "
     clean_fl = fl_id.strip()
 
     with respx.mock:

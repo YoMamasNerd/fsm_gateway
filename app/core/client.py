@@ -994,17 +994,51 @@ class FSMClient:
                 except Exception as exc:
                     logger.warning("Fehler bei Teilsuche %s: %s", search_params, exc)
 
-            if len(words) >= 2:
-                w1, w2 = words[0], " ".join(words[1:])
-                # Try vorname=w1, name=w2 AND vorname=w2, name=w1
-                await _do_query({"vorname": w1, "name": w2})
-                await _do_query({"vorname": w2, "name": w1})
-            else:
-                # 1 word: query vorname, name, and karteiNr in parallel
-                tasks = [_do_query({"name": clean_q}), _do_query({"vorname": clean_q})]
-                if any(c.isdigit() for c in clean_q):
-                    tasks.append(_do_query({"karteiNr": clean_q}))
-                await asyncio.gather(*tasks, return_exceptions=True)
+            def _umlaut_variants(text: str) -> list[str]:
+                low = text.lower()
+                variants: list[str] = []
+                # ASCII -> Umlaut (z.B. Bjoern Mueller -> Björn Müller)
+                to_uml = (
+                    text.replace("ae", "ä").replace("oe", "ö").replace("ue", "ü")
+                    .replace("Ae", "Ä").replace("Oe", "Ö").replace("Ue", "Ü")
+                )
+                if to_uml != text:
+                    variants.append(to_uml)
+                # Umlaut -> ASCII (z.B. Björn -> Bjoern)
+                to_ascii = (
+                    text.replace("ä", "ae").replace("ö", "oe").replace("ü", "ue").replace("ß", "ss")
+                    .replace("Ä", "Ae").replace("Ö", "Oe").replace("Ü", "Ue")
+                )
+                if to_ascii != text and to_ascii not in variants:
+                    variants.append(to_ascii)
+                if "ss" in low:
+                    ss_var = text.replace("ss", "ß")
+                    if ss_var != text and ss_var not in variants:
+                        variants.append(ss_var)
+                return variants
+
+            def _build_tasks_for_phrase(phrase: str) -> list[ Any ]:
+                w_list = phrase.split()
+                if len(w_list) >= 2:
+                    pairs = {(w_list[0], " ".join(w_list[1:])), (" ".join(w_list[1:]), w_list[0])}
+                    if len(w_list) >= 3:
+                        pairs.add((" ".join(w_list[:-1]), w_list[-1]))
+                        pairs.add((w_list[-1], " ".join(w_list[:-1])))
+                    return [_do_query({"vorname": vn, "name": nn}) for vn, nn in pairs]
+                t_list = [_do_query({"name": phrase}), _do_query({"vorname": phrase})]
+                if any(c.isdigit() for c in phrase):
+                    t_list.append(_do_query({"karteiNr": phrase}))
+                return t_list
+
+            await asyncio.gather(*_build_tasks_for_phrase(clean_q), return_exceptions=True)
+
+            # Fallback bei Umlaut-/Transliterations-Abweichung (z.B. "Bjoern Mueller" vs. "Björn Müller")
+            if not accumulated_rows:
+                uml_tasks = []
+                for var in _umlaut_variants(clean_q):
+                    uml_tasks.extend(_build_tasks_for_phrase(var))
+                if uml_tasks:
+                    await asyncio.gather(*uml_tasks, return_exceptions=True)
 
             return {"rows": list(accumulated_rows.values())}
 

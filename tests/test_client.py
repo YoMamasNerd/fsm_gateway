@@ -246,3 +246,34 @@ async def test_request_with_login_redirect_retry():
     assert res[0]["vorname"] == "Max"
     assert await client.get_auth_token() == "refreshed-fsm-token-redirect"
 
+
+@pytest.mark.asyncio
+@respx.mock
+async def test_search_schueler_three_words_and_umlaut_fallback():
+    client = FSMClient(
+        base_url="https://api.fahrschulmanager.de",
+        auth_url="https://login.fahren-lernen.de",
+        portal_url="https://portal.fahrschulmanager.de",
+        auth_token="valid-token",
+    )
+
+    def _mock_search(request: httpx.Request) -> httpx.Response:
+        vn = request.url.params.get("vorname", "")
+        nn = request.url.params.get("name", "")
+        if vn == "Hans Peter" and nn == "Schmidt":
+            return httpx.Response(200, json={"rows": [{"data": {"id": "s-hp", "vorname": "Hans Peter", "nachname": "Schmidt"}}]})
+        if vn == "Björn" and nn == "Müller":
+            return httpx.Response(200, json={"rows": [{"data": {"id": "s-bm", "vorname": "Björn", "nachname": "Müller"}}]})
+        return httpx.Response(200, json={"rows": []})
+
+    respx.get("https://api.fahrschulmanager.de/v2/schueler/suche").mock(side_effect=_mock_search)
+
+    res1 = await client.search_schueler(query="Hans Peter Schmidt")
+    assert len(res1["rows"]) == 1
+    assert res1["rows"][0]["data"]["id"] == "s-hp"
+
+    res2 = await client.search_schueler(query="Bjoern Mueller")
+    assert len(res2["rows"]) == 1
+    assert res2["rows"][0]["data"]["id"] == "s-bm"
+
+

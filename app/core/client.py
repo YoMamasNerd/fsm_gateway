@@ -979,7 +979,6 @@ class FSMClient:
         # Case 2: General query search
         if query and query.strip():
             clean_q = query.strip()
-            words = clean_q.split()
             accumulated_rows: dict[str, dict[str, Any]] = {}
 
             async def _do_query(search_params: dict[str, str]):

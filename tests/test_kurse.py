@@ -107,12 +107,19 @@ async def test_delete_kurs_success(async_client: httpx.AsyncClient):
 @respx.mock
 async def test_add_kursteilnehmer_success(async_client: httpx.AsyncClient):
     kurs_id = "a65bc36b-9d3f-46f2-9ac1-44ecefc94162"
+    existing_id = "11111111-2222-3333-4444-555555555555"
     schueler_id = "f2473831-0523-47ef-be01-4501c3877239"
+
+    # get_kurs_teilnehmer will fetch existing enrolled students first
+    respx.get(f"https://api.fahrschulmanager.de/v1/kursteilnehmer/{kurs_id}").respond(
+        status_code=200,
+        json={"rows": [{"data": {"id": existing_id, "vorname": "Bestehender", "nachname": "Schueler"}}]},
+    )
 
     add_route = respx.post("https://api.fahrschulmanager.de/v1/kursteilnehmer").respond(
         status_code=200,
         json={
-            "viewModel": {"kursId": kurs_id, "teilnehmer": [schueler_id]},
+            "viewModel": {"kursId": kurs_id, "teilnehmer": [existing_id, schueler_id]},
             "responses": [],
             "location": None,
         },
@@ -125,12 +132,12 @@ async def test_add_kursteilnehmer_success(async_client: httpx.AsyncClient):
     data = resp.json()
     assert data["success"] is True
     assert data["kurs_id"] == kurs_id
-    assert data["schueler_ids"] == [schueler_id]
-    assert data["added_count"] == 1
+    assert data["schueler_ids"] == [existing_id, schueler_id]
+    assert data["added_count"] == 2
 
     sent_body = json.loads(add_route.calls.last.request.content)
     assert sent_body["viewModel"]["kursId"] == kurs_id
-    assert sent_body["viewModel"]["teilnehmer"] == [schueler_id]
+    assert sent_body["viewModel"]["teilnehmer"] == [existing_id, schueler_id]
 
 
 @pytest.mark.asyncio

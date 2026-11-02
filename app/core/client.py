@@ -826,12 +826,33 @@ class FSMClient:
         return True
 
     async def add_kursteilnehmer(self, kurs_id: str, schueler_ids: list[str]) -> list[str]:
-        """Adds one or more students to a course in FSM."""
-        payload = {"viewModel": {"teilnehmer": schueler_ids, "kursId": kurs_id}}
+        """
+        Adds one or more students to a course in FSM.
+        Preserves existing participants by fetching current enrolled students first
+        and sending the union of existing and new students to FSM's POST /v1/kursteilnehmer.
+        """
+        try:
+            existing = await self.get_kurs_teilnehmer(kurs_id)
+            existing_ids = [
+                str(p["id"])
+                for p in existing
+                if isinstance(p, dict) and p.get("id")
+            ]
+        except Exception as exc:
+            logger.warning("Konnte bestehende Teilnehmer für Kurs %s nicht vorab laden: %s", kurs_id, exc)
+            existing_ids = []
+
+        combined_ids: list[str] = list(existing_ids)
+        for sid in schueler_ids:
+            clean_sid = str(sid).strip()
+            if clean_sid and clean_sid not in combined_ids:
+                combined_ids.append(clean_sid)
+
+        payload = {"viewModel": {"teilnehmer": combined_ids, "kursId": kurs_id}}
         res = await self.request("POST", "v1/kursteilnehmer", json_data=payload)
         vm = res.get("viewModel", {}) if isinstance(res, dict) else {}
         added = vm.get("teilnehmer") if isinstance(vm, dict) else None
-        return [str(sid) for sid in added] if isinstance(added, list) else list(schueler_ids)
+        return [str(sid) for sid in added] if isinstance(added, list) else list(combined_ids)
 
     async def list_kurse(self, active: bool = True) -> list[dict[str, Any]]:
         """Listet Kurs-Container aus FSM (Stammdaten, kein Tagesplan)."""

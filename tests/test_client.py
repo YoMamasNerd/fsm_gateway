@@ -280,7 +280,6 @@ async def test_search_schueler_three_words_and_umlaut_fallback():
 @pytest.mark.asyncio
 @respx.mock
 async def test_delete_termin_failure_preserves_calendar_cache():
-    import datetime as dt
     from app.core.cache import cache
     from app.core.client import FsmApiError
 
@@ -313,6 +312,7 @@ async def test_delete_termin_failure_preserves_calendar_cache():
 @respx.mock
 async def test_create_termin_failure_preserves_calendar_cache():
     import datetime as dt
+
     from app.core.cache import cache
     from app.core.client import FsmApiError
 

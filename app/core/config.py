@@ -68,8 +68,8 @@ class Settings(BaseSettings):
         description="Default TTL in seconds for general cached entities",
     )
     CALENDAR_CACHE_TTL_SECONDS: int = Field(
-        default=43200,
-        description="Optimistic TTL in seconds for instructor calendar responses (default: 12 hours / 43200s)",
+        default=600,
+        description="Optimistic TTL in seconds for instructor calendar responses (default: 10 minutes / 600s)",
     )
     CALENDAR_SWR_MAX_AGE_SECONDS: int = Field(
         default=86400,
@@ -84,8 +84,8 @@ class Settings(BaseSettings):
         description="TTL in seconds for student details/profile cache (default: 6 hours / 21600s)",
     )
     SCHUELER_SUCHE_CACHE_TTL_SECONDS: int = Field(
-        default=60,
-        description="TTL in seconds for student search cache (default: 60s)",
+        default=300,
+        description="TTL in seconds for student search cache (default: 5 minutes / 300s)",
     )
     FAHRSTUNDEN_CACHE_TTL_SECONDS: int = Field(
         default=300,

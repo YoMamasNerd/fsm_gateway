@@ -277,3 +277,65 @@ async def test_search_schueler_three_words_and_umlaut_fallback():
     assert res2["rows"][0]["data"]["id"] == "s-bm"
 
 
+@pytest.mark.asyncio
+@respx.mock
+async def test_delete_termin_failure_preserves_calendar_cache():
+    import datetime as dt
+    from app.core.cache import cache
+    from app.core.client import FsmApiError
+
+    await cache.clear()
+    await cache.set("kalender:fl-1:2026-11-12:2026-12-24:False:True", {"events": []}, ttl=600)
+
+    client = FSMClient(
+        base_url="https://api.fahrschulmanager.de",
+        auth_url="https://login.fahren-lernen.de",
+        portal_url="https://portal.fahrschulmanager.de",
+        auth_token="valid-token",
+    )
+
+    respx.delete("https://api.fahrschulmanager.de/v1/termine").respond(status_code=404, json={"message": "Not found"})
+    respx.delete("https://api.fahrschulmanager.de/v1/termine/termin/tid-404").respond(status_code=404)
+
+    with pytest.raises(FsmApiError):
+        await client.delete_termin("tid-404")
+
+    # Cache must NOT be wiped on failed delete
+    assert await cache.get("kalender:fl-1:2026-11-12:2026-12-24:False:True") is not None
+
+    # Successful delete DOES invalidate calendar cache
+    respx.delete("https://api.fahrschulmanager.de/v1/termine").respond(status_code=200, json={})
+    assert await client.delete_termin("tid-200") is True
+    assert await cache.get("kalender:fl-1:2026-11-12:2026-12-24:False:True") is None
+
+
+@pytest.mark.asyncio
+@respx.mock
+async def test_create_termin_failure_preserves_calendar_cache():
+    import datetime as dt
+    from app.core.cache import cache
+    from app.core.client import FsmApiError
+
+    await cache.clear()
+    await cache.set("kalender:fl-1:2026-11-12:2026-12-24:False:True", {"events": []}, ttl=600)
+
+    client = FSMClient(
+        base_url="https://api.fahrschulmanager.de",
+        auth_url="https://login.fahren-lernen.de",
+        portal_url="https://portal.fahrschulmanager.de",
+        auth_token="valid-token",
+    )
+
+    respx.post("https://api.fahrschulmanager.de/v1/termine").respond(status_code=400, json={"message": "Konflikt"})
+
+    with pytest.raises(FsmApiError):
+        await client.create_termin(
+            fahrlehrer_id="fl-1",
+            von=dt.datetime(2026, 12, 23, 15, 0),
+            bis=dt.datetime(2026, 12, 23, 18, 0),
+            titel="Test",
+        )
+
+    assert await cache.get("kalender:fl-1:2026-11-12:2026-12-24:False:True") is not None
+
+

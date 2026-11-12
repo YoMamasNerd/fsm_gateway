@@ -654,6 +654,16 @@ class FSMClient:
         res = await self.request("GET", path, params=params, base_url_override=settings.FSM_MAPI_URL)
         return res if isinstance(res, dict) else {}
 
+    async def _invalidate_calendar_cache(self, fahrlehrer_id: str | None = None) -> None:
+        """Invalidates calendar cache entries for one instructor or all instructors."""
+        if fahrlehrer_id:
+            clean_fl_id = str(fahrlehrer_id).strip()
+            await cache.delete_prefix(f"fsm:kalender:{clean_fl_id}")
+            await cache.delete_prefix(f"kalender:{clean_fl_id}")
+        else:
+            await cache.delete_prefix("fsm:kalender:")
+            await cache.delete_prefix("kalender:")
+
     async def create_termin(
         self,
         fahrlehrer_id: str,
@@ -668,9 +678,6 @@ class FSMClient:
     ) -> list[str]:
         """Creates appointment/blocker. Automatically splits blocks exceeding 600 min."""
         clean_fl_id = str(fahrlehrer_id).strip()
-        await cache.delete_prefix(f"fsm:kalender:{clean_fl_id}")
-        await cache.delete_prefix(f"kalender:{clean_fl_id}")
-
         leistungsart = leistungsart_id or settings.FSM_DEFAULT_LEISTUNGSART_ID
         duration_minutes = (bis - von).total_seconds() / 60.0
 
@@ -726,6 +733,7 @@ class FSMClient:
             elif isinstance(res, dict) and "id" in res:
                 created_ids.append(str(res["id"]))
 
+        await self._invalidate_calendar_cache(clean_fl_id)
         return created_ids
 
     async def update_termin(
@@ -743,8 +751,6 @@ class FSMClient:
     ) -> bool:
         """Updates an existing calendar appointment in FSM."""
         clean_fl_id = str(fahrlehrer_id).strip()
-        await cache.delete_prefix(f"fsm:kalender:{clean_fl_id}")
-        await cache.delete_prefix(f"kalender:{clean_fl_id}")
         leistungsart = leistungsart_id or settings.FSM_DEFAULT_LEISTUNGSART_ID
         payload = {
             "viewModel": {
@@ -761,19 +767,22 @@ class FSMClient:
             }
         }
         res = await self.request("PUT", "v1/termine", json_data=payload)
-        return res is not None
+        if res is not None:
+            await self._invalidate_calendar_cache(clean_fl_id)
+            return True
+        return False
 
     async def delete_termin(self, termin_id: str) -> bool:
         """Deletes an appointment from FSM by UUID."""
-        await cache.delete_prefix("fsm:kalender:")
-        await cache.delete_prefix("kalender:")
         payload = {"viewModel": {"id": termin_id}}
         try:
             await self.request("DELETE", "v1/termine", json_data=payload)
+            await self._invalidate_calendar_cache()
             return True
         except FsmApiError as exc:
             if exc.status_code in (404, 405):
                 await self.request("DELETE", f"v1/termine/termin/{termin_id}")
+                await self._invalidate_calendar_cache()
                 return True
             raise
 
